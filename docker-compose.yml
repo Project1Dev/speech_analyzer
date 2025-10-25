@@ -1,0 +1,124 @@
+"""
+Docker Compose Configuration
+
+Sets up complete development environment with:
+- FastAPI backend
+- PostgreSQL database
+- Redis (for caching and background tasks)
+- pgAdmin (database management UI)
+
+Usage:
+  docker-compose up -d          # Start all services
+  docker-compose down           # Stop all services
+  docker-compose logs -f        # View logs
+
+Services:
+  - backend: FastAPI app on http://localhost:8000
+  - postgres: PostgreSQL on localhost:5432
+  - redis: Redis on localhost:6379
+  - pgadmin: pgAdmin on http://localhost:5050
+"""
+
+version: "3.9"
+
+services:
+  # MARK: - PostgreSQL Database
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: speech_mastery_postgres
+    environment:
+      POSTGRES_DB: speech_mastery_db
+      POSTGRES_USER: speech_mastery
+      POSTGRES_PASSWORD: dev_password_change_in_production
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U speech_mastery"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MARK: - Redis Cache
+
+  redis:
+    image: redis:7-alpine
+    container_name: speech_mastery_redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MARK: - FastAPI Backend
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: speech_mastery_backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://speech_mastery:dev_password_change_in_production@postgres:5432/speech_mastery_db
+      REDIS_URL: redis://redis:6379
+      ENVIRONMENT: development
+      DEBUG: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/__pycache__
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MARK: - pgAdmin (Database UI)
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: speech_mastery_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+# MARK: - Volumes
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+# MARK: - TODO: Production Configuration
+# TODO: Create docker-compose.prod.yml for production deployment
+# TODO: Remove healthchecks or use different configuration
+# TODO: Use environment variables for sensitive data
+# TODO: Set proper security constraints
+# TODO: Configure logging and monitoring
+# TODO: Use proper database passwords
+# TODO: Set up SSL/TLS for production

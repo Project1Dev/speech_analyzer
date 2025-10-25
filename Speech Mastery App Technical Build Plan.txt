@@ -1,0 +1,98 @@
+# Enhanced Speech Mastery App Technical Build Plan
+
+## Core Identity
+An iOS-based personal AI speech coach app, implemented in Swift 5.9+ with SwiftUI for declarative UI, that leverages server-backed AI analysis to enhance users' communication skills. The app enables manual and background audio recording (with visual indicators for privacy), securely uploads recordings to a FastAPI backend for transcription and NLP analysis using Whisper and spaCy, and delivers personalized feedback to foster commanding and influential speech patterns. All data processing emphasizes local encryption, auto-deletion after 7 days, and compliance with privacy laws, with modularity in components for easy maintenance and scalability.
+
+## How It Works
+1. Audio Capture & Privacy-First Implementation
+
+   - **iOS Recording Mechanism**: Utilize AVFoundation framework in Swift for manual recording initiation via user tap and limited background recording triggered by app events (e.g., during user-defined sessions like meetings, with strict iOS background audio constraints to avoid continuous monitoring). Display persistent visual indicators (e.g., red recording badge in SwiftUI views) to ensure user awareness and respect privacy laws. Recordings are saved as temporary .m4a files in the app's secure container.
+   
+   - **Smart Detection and Filtering**: On-device preliminary processing using AVAudioEngine to detect user speech via voice activity detection (VAD) thresholds, buffering only when speech is active. Filter out non-user audio via basic amplitude checks (no advanced speaker diarization due to on-device limits). Users can exclude segments via a SwiftUI button that marks timestamps for deletion before upload.
+   
+   - **Storage and Security**: Store recordings locally using CoreData entities (e.g., Recording model with binary data for audio blobs, timestamps, and metadata). Implement encryption with File Protection Complete (NSFileProtectionComplete) and auto-delete logic via a scheduled background task that queries CoreData for records older than 7 days and removes them. Optional context-based modes use UserDefaults to store preferences, enabling recording only during specified time windows via iOS notifications or calendar integrations.
+   
+   - **Data Flow**: Upon completion, recordings are uploaded in background via URLSession with multipart/form-data, including user authentication tokens for secure transmission over HTTPS.
+
+2. Multi-Layer Speech Analysis Engine
+   The backend FastAPI server handles uploaded audio via a POST endpoint (/analyze), processes it through a pipeline, and stores results in PostgreSQL via SQLAlchemy ORM.
+
+   - **Power Dynamics Analysis**:
+     - After Whisper transcription to text, use spaCy pipelines (en_core_web_sm model) for tokenization and part-of-speech tagging to identify hedging words (e.g., pattern matching on lists like "maybe", "I think"), filler words (e.g., "um", "like"), and upspeak proxies via question mark detection in sentences.
+     - Detect supplicating tonality via sentiment analysis (spaCy with TextBlob integration for polarity scores) and assertion-to-question ratio by counting sentence types (imperative vs. interrogative).
+
+   - **Linguistic Authority Metrics**:
+     - Passive vs. active voice detection using spaCy's dependency parsing to check for passive constructions (e.g., "was done" patterns).
+     - Vague vs. precise language scored via entropy measures on word diversity; word economy via average sentence length calculations in Python.
+     - Jargon dependency flagged by named entity recognition (NER) overuse.
+
+   - **Vocal Command Presence**:
+     - Pace and rhythm from Whisper's timestamped transcripts: calculate words per minute (WPM) and pause durations between tokens.
+     - Tone proxies via text-based sentiment and variance in sentence lengths; no direct audio tonality analysis beyond pace due to simplification.
+
+   - **Persuasion & Influence Tracking**:
+     - Story structure via coherence scoring (cosine similarity between sentences using spaCy's vector embeddings).
+     - Detect persuasion principles through keyword matching (e.g., "because" for authority, scarcity terms like "limited").
+
+   - **Workflow**: Audio is transcribed asynchronously; spaCy processes transcripts in a Celery task queue for scalability. Results are JSON-serialized and stored in database tables (e.g., AnalysisResult with fields for scores, patterns, timestamps).
+
+3. Daily Power Report
+   - **Server Generation**: A daily cron job (via APScheduler in FastAPI) aggregates analyses from the past 24 hours, computes scores (e.g., Authority Presence as weighted average of pattern detections, normalized to 0-100), identifies critical moments via high/low score thresholds, and generates pattern trends using SQL queries on historical data. Output as JSON payload with structured fields (e.g., {"speech_score": {"authority": 76}, "critical_moments": [{"quote": "text", "alternative": "suggestion"}]}).
+   
+   - **App Retrieval and Display**: iOS app uses URLSession to fetch reports via GET /reports/{user_id} endpoint, parses JSON into CoreData models (e.g., Report entity), and renders in SwiftUI views (e.g., List for scores, Chart for trends using Swift Charts framework). Push notifications via APNs trigger fetches for evening delivery.
+   
+   - **Pattern Recognition**: Server-side SQL aggregates (e.g., GROUP BY on weakness types) for top patterns; app displays as bar charts with time-series data.
+
+## Premium Features
+Premium status flagged via user database column; additional endpoints require authentication checks.
+
+4. CEO Voice Synthesis
+   - **Implementation**: Pre-load text templates from historical speeches (stored in database as strings). Server compares user transcripts via string similarity (e.g., difflib in Python) and generates alternatives. Endpoint /compare returns JSON with reframed text.
+   - **App Integration**: SwiftUI premium view fetches and displays comparisons; no real-time synthesis, only post-analysis.
+
+5. Pre-Game Prep Mode
+   - **Server**: Endpoint /prep generates JSON with weak patterns from recent analyses, talking points via template filling (e.g., replace weak phrases), and exercise prompts.
+   - **App**: SwiftUI modal view for inputting agenda; displays lists and audio playback for warm-ups using AVAudioPlayer.
+
+6. Live Guardian Mode (Advanced)
+   - **Simplification**: No real-time alerts; post-conversation upload and quick analysis via priority queue on server. App uses WatchConnectivity for watch vibrations based on on-device filler count (basic keyword spotting in real-time transcription snippets).
+   - **Debrief**: Server generates 2-minute summary text; app converts to speech via AVSpeechSynthesizer.
+
+7. Simulation Arena
+   - **Server**: Endpoint /simulate uses pre-defined scripts; analyzes user-recorded responses post-upload.
+   - **App**: SwiftUI interface for roleplay recording; difficulty via parameter in upload (e.g., aggression level in AI response templates).
+
+8. Power Language Arsenal
+   - **Server**: Database tables for phrase mappings; endpoint /arsenal returns personalized lists based on user patterns.
+   - **App**: SwiftUI searchable list views for browsing and practicing via audio recording.
+
+9. Conversational Chess
+   - **Simplification**: Text-based analysis of transcripts for airtime (word count ratios) and tactics (keyword detection).
+   - **App Display**: SwiftUI graphs for visualizations, fetched from server JSON.
+
+10. Voice Command Training
+    - **App-Led**: Daily SwiftUI views with timers and audio feedback; records drills and uploads for server scoring.
+    - **Exercises**: Use on-device pace calculations; server enhances with spaCy.
+
+11. Accountability & Gamification
+    - **Server**: Tracks streaks and XP via database updates; anonymous leaderboards via aggregated queries.
+    - **App**: SwiftUI badges and progress views; local CoreData for offline tracking, synced on upload.
+
+## Success Guarantee System
+- **Server**: 90-day protocol as scheduled reports; tracks metrics via SQL trends (e.g., filler reduction as percentage change).
+- **App**: Displays before/after comparisons via stored recordings; refund logic handled manually via support flags.
+
+## Privacy & Ethics
+- **On-Device**: All initial processing local; no sharing without opt-in via settings.
+- **Server**: Encrypted uploads; regional compliance via user location headers.
+- **Features**: Emergency delete via CoreData queries; visual indicators in all recording views.
+
+## The Promise
+Through this iOS-Server architecture, users achieve measurable speech improvements via data-driven analysis, with secure, modular components ensuring reliable transformation.
+
+## Implementation Notes
+- **Integration**: Use JWT for API authentication; background uploads via URLSessionBackground for reliability. Data models: CoreData with entities like User, Recording, Report; SQL tables mirroring for sync.
+- **Error Handling**: App-side try-catch for recording/network failures with user alerts; server-side FastAPI exception handlers logging to console.
+- **Scalability**: FastAPI with uvicorn for async handling; database sharding if needed for growth.
+- **Testing**: Unit tests with XCTest for Swift components (e.g., recording flows); Pytest for FastAPI endpoints and spaCy pipelines. Integration tests simulate uploads and report fetches.
+- **Deployment**: App via App Store; server on AWS/Heroku with PostgreSQL, using Docker for containerization.
