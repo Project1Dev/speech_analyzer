@@ -1,0 +1,36 @@
+# XcodeGen generated files
+ios/SpeechMastery.xcodeproj/
+ios/build/
+ios/Pods/
+
+# Xcode
+*.xcworkspace/
+DerivedData/
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# SQLite
+*.db

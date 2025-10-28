@@ -41,9 +41,17 @@ class Settings(BaseSettings):
     TRANSCRIPTION_SERVICE: str = os.getenv("TRANSCRIPTION_SERVICE", "mock")  # mock, whisper, etc.
     NLP_SERVICE: str = os.getenv("NLP_SERVICE", "basic")  # basic, spacy, openai, etc.
 
+    # Redis Configuration (for caching and background tasks)
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
+
+    # Environment Configuration
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")  # development, testing, production
+    DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
+
     class Config:
         case_sensitive = True
         env_file = ".env"
+        extra = "ignore"  # Ignore extra fields not defined in Settings
 
 
 # Global settings instance
