@@ -4,17 +4,28 @@ Complete setup and development workflow guide for the Speech Mastery App.
 
 ## Prerequisites
 
-### Required
-- **macOS** 13.0+ (for iOS development)
-- **Xcode** 15.0+ with Command Line Tools
-- **Docker Desktop** 4.0+ (for backend services)
-- **Python** 3.11+
-- **Git** 2.40+
+### Development Environment
 
-### Optional
-- **Homebrew** (package manager for macOS)
-- **pyenv** (Python version management)
-- **Swift-format** (code formatting)
+This project uses a **dual-VM setup**:
+
+- **Linux VM**: Backend development (Docker, Python, PostgreSQL)
+  - Ubuntu 20.04+ or similar Linux distribution
+  - Docker 20.0+ and docker-compose 2.0+
+  - Python 3.9+ (3.11+ recommended)
+  - Git 2.30+
+
+- **macOS VM**: iOS development (Xcode, Simulator)
+  - macOS 13.0+ (Ventura or later)
+  - Xcode 15.0+ with Command Line Tools
+  - XcodeGen (`brew install xcodegen`)
+  - Git 2.30+
+
+Both VMs should be on the same host machine for easy networking.
+
+### Optional Tools
+- **Homebrew** (macOS package manager)
+- **pyenv** (Python version management on Linux)
+- **Swift-format** (iOS code formatting)
 
 ---
 
@@ -119,21 +130,184 @@ curl -H "Authorization: Bearer SINGLE_USER_DEV_TOKEN_12345" \
 # Expected: Empty list or test recordings
 ```
 
-### 6. iOS Project Setup
+---
+
+## Dual-VM Development Setup
+
+This section covers the specific workflow for working across Linux and macOS VMs.
+
+### Network Configuration Between VMs
+
+**Goal**: Allow iOS app on macOS VM to communicate with backend on Linux VM.
+
+#### Step 1: Configure Linux VM Backend
+
+The backend is already configured to bind to all interfaces (`0.0.0.0`) in `docker-compose.yml`:
+
+```yaml
+ports:
+  - "8000:8000"  # Accessible from outside Linux VM
+```
+
+#### Step 2: Find Linux VM IP Address
+
+On the **Linux VM**, run:
 
 ```bash
-# Run automated setup script
-./scripts/setup_ios.sh
+# Method 1: Using ip command
+ip addr show | grep "inet " | grep -v 127.0.0.1
 
-# Or manual setup:
-cd ios/SpeechMastery
+# Method 2: Using hostname
+hostname -I
 
-# Install dependencies (if using Swift Package Manager)
-# Dependencies will be resolved on first Xcode build
+# Method 3: Using helper script
+cd backend && ./show_api_url.sh
+```
 
-# Open project
+This will show the Linux VM's IP address on the host network (e.g., `192.168.1.150`).
+
+#### Step 3: Test Connectivity
+
+From the **macOS VM**, verify you can reach the backend:
+
+```bash
+# Test backend health endpoint
+curl http://<linux-vm-ip>:8000/health
+
+# Expected response:
+# {"status":"healthy","version":"1.0.0"}
+```
+
+If this fails:
+- Check firewall on Linux VM: `sudo ufw status` (disable or allow port 8000)
+- Verify backend is running: `docker-compose ps`
+- Ensure both VMs are on same network (bridged or host network)
+
+#### Step 4: Configure iOS App
+
+On the **macOS VM**, update the API endpoint in `ios/SpeechMastery/Utilities/Constants.swift`:
+
+```swift
+struct APIConstants {
+    // Use Linux VM IP address
+    static let baseURL = "http://192.168.1.150:8000"  // Replace with your Linux VM IP
+
+    static let authToken = "SINGLE_USER_DEV_TOKEN_12345"
+}
+```
+
+### Git Workflow Between VMs
+
+**Recommended workflow:**
+
+1. **Linux VM**: Work on backend code
+   ```bash
+   # Make changes to Python files
+   git add backend/
+   git commit -m "feat: Add new analyzer endpoint"
+   git push origin master
+   ```
+
+2. **macOS VM**: Pull changes and develop iOS
+   ```bash
+   # Pull latest backend changes
+   git pull origin master
+
+   # Work on iOS app
+   # Test integration with updated backend
+
+   # Commit iOS changes
+   git add ios/
+   git commit -m "feat: Integrate new analyzer in iOS UI"
+   git push origin master
+   ```
+
+3. **Linux VM**: Pull iOS changes if needed
+   ```bash
+   git pull origin master
+   ```
+
+**Best practices:**
+- Commit and push frequently to keep VMs in sync
+- Always `git pull` before starting new work
+- Use clear commit messages indicating which component changed (iOS/backend)
+- Avoid editing the same files simultaneously on both VMs
+
+### Typical Development Cycle
+
+**Backend-focused work:**
+1. Linux VM: Edit Python code
+2. Linux VM: Run `pytest` to verify
+3. Linux VM: Test API with `curl` or Postman
+4. Linux VM: Commit and push
+5. macOS VM: Pull and test iOS integration
+
+**iOS-focused work:**
+1. macOS VM: Pull latest backend changes
+2. macOS VM: Ensure backend is running on Linux VM
+3. macOS VM: Edit Swift code in Xcode
+4. macOS VM: Test with Simulator pointing to Linux VM backend
+5. macOS VM: Commit and push
+6. Linux VM: Pull if needed for reference
+
+**Integration work:**
+1. Linux VM: Implement new API endpoint
+2. Linux VM: Test endpoint, commit, push
+3. macOS VM: Pull changes
+4. macOS VM: Update iOS APIService to call new endpoint
+5. macOS VM: Update UI to display new data
+6. macOS VM: Test end-to-end flow
+7. macOS VM: Commit and push
+
+### Troubleshooting VM Communication
+
+**Issue**: iOS app can't reach backend
+
+```bash
+# On macOS VM - verify network connectivity
+ping <linux-vm-ip>
+
+# Test specific port
+telnet <linux-vm-ip> 8000
+# Or use nc (netcat)
+nc -zv <linux-vm-ip> 8000
+```
+
+**Issue**: Connection refused
+
+- Backend may not be running: `docker-compose ps` on Linux VM
+- Firewall blocking: `sudo ufw allow 8000` on Linux VM
+- Wrong IP address: Re-check with `hostname -I`
+
+**Issue**: Connection timeout
+
+- VMs on different networks: Check VM network settings (should be bridged or host network)
+- Host firewall blocking: Check host machine firewall rules
+
+**Issue**: Linux VM IP keeps changing
+
+- Configure static IP for Linux VM in network settings
+- Or update iOS Constants.swift each time it changes (development only)
+
+---
+
+### 6. iOS Project Setup (macOS VM Only)
+
+```bash
+# Install XcodeGen (if not already installed)
+brew install xcodegen
+
+# Navigate to iOS directory
+cd ios
+
+# Generate Xcode project from project.yml
+xcodegen generate
+
+# Open generated project
 open SpeechMastery.xcodeproj
 ```
+
+**Note**: The `.xcodeproj` file is generated and should not be committed to git. Always regenerate it with `xcodegen generate` after pulling changes that modify `project.yml`.
 
 **Xcode Configuration**:
 1. Select development team in Signing & Capabilities
