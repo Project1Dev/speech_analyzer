@@ -2,8 +2,14 @@
 
 # Speech Mastery Quick Start Script
 # This script sets up the backend and starts it on Linux
+# Works from any directory (root or scripts/)
 
 set -e
+
+# Determine project root (works from any directory)
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_ROOT"
 
 echo "🚀 Speech Mastery - Quick Start"
 echo "================================"

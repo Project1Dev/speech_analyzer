@@ -6,10 +6,15 @@
 # Initializes development environment for both iOS and backend.
 # Creates virtual environments, installs dependencies, and sets up databases.
 #
-# Usage: ./scripts/setup.sh
+# Usage: ./scripts/setup.sh (from root or scripts/)
 #
 
 set -e  # Exit on error
+
+# Determine project root (works from any directory)
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_ROOT"
 
 echo "Speech Mastery Development Setup"
 echo "=================================="

@@ -4,11 +4,17 @@
 # Docker Startup Script
 #
 # Starts all Docker containers and displays service URLs.
+# Works from any directory (root or scripts/)
 #
 # Usage: ./scripts/start-docker.sh
 #
 
 set -e
+
+# Determine project root (works from any directory)
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_ROOT"
 
 echo "Starting Speech Mastery Docker Services..."
 echo ""

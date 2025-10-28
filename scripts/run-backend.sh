@@ -2,6 +2,7 @@
 
 # Speech Mastery - Backend Runner
 # Simple script to start the backend with proper setup
+# Works from any directory (root or scripts/)
 
 set -e
 
@@ -11,14 +12,17 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
+# Determine project root (works from any directory)
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_ROOT"
+
 cd backend
 
 # Check if venv exists
 if [ ! -d "venv" ]; then
     echo -e "${YELLOW}Virtual environment not found. Running setup first...${NC}"
-    cd ..
-    bash quick-start.sh
-    cd backend
+    bash "$PROJECT_ROOT/scripts/setup.sh"
 fi
 
 # Activate venv
