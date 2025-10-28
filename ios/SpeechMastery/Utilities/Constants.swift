@@ -17,8 +17,49 @@ import Foundation
 enum Constants {
     // MARK: - API Configuration
     enum API {
-        static let baseURL = "http://localhost:8000"
-        static let authToken = "dev-prototype-token-12345"
+        /// Backend API base URL
+        ///
+        /// **Dual-VM Development Setup:**
+        /// This app is developed using a dual-VM workflow:
+        /// - Linux VM: Backend (FastAPI, PostgreSQL, Docker)
+        /// - macOS VM: iOS app (Xcode, Simulator)
+        ///
+        /// **Configuration Options:**
+        ///
+        /// 1. **Simulator on same machine as backend**:
+        ///    ```swift
+        ///    static let baseURL = "http://localhost:8000"
+        ///    ```
+        ///
+        /// 2. **Simulator connecting to Linux VM backend** (RECOMMENDED for dual-VM setup):
+        ///    ```swift
+        ///    static let baseURL = "http://192.168.1.150:8000"  // Replace with Linux VM IP
+        ///    ```
+        ///    To find Linux VM IP, run on Linux VM:
+        ///    ```bash
+        ///    hostname -I
+        ///    # or
+        ///    ip addr show | grep "inet " | grep -v 127.0.0.1
+        ///    # or use helper script
+        ///    cd backend && ./show_api_url.sh
+        ///    ```
+        ///
+        /// 3. **Physical iOS device**:
+        ///    Same as option 2 - use Mac's or Linux VM's IP address
+        ///
+        /// **Troubleshooting:**
+        /// - Ensure backend is running: `docker-compose ps` on Linux VM
+        /// - Test connectivity: `curl http://<linux-vm-ip>:8000/health` from macOS VM
+        /// - Check firewall: `sudo ufw allow 8000` on Linux VM
+        /// - Verify both VMs are on same network (bridged mode)
+        ///
+        /// **Current Configuration:**
+        static let baseURL = "http://localhost:8000"  // ← CHANGE THIS for dual-VM setup!
+
+        /// Authentication token for single-user prototype mode
+        static let authToken = "SINGLE_USER_DEV_TOKEN_12345"
+
+        /// Request timeout in seconds
         static let timeout: TimeInterval = 30.0
     }
 
