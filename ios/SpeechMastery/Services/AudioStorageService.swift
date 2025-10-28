@@ -73,9 +73,16 @@ class AudioStorageService: ObservableObject {
         self.userDefaults = userDefaults
         self.fileManager = fileManager
 
-        // TODO: Ensure recordings directory exists
-        // TODO: Load recordings from UserDefaults
-        // TODO: Calculate total storage used
+        // Ensure recordings directory exists
+        try? ensureRecordingsDirectoryExists()
+
+        // Load recordings from UserDefaults
+        self.recordings = loadFromUserDefaults()
+
+        // Calculate total storage used
+        self.totalStorageUsed = calculateTotalStorageUsed()
+
+        print("💾 AudioStorageService initialized with \(recordings.count) recordings")
     }
 
     // MARK: - CRUD Operations
@@ -84,61 +91,106 @@ class AudioStorageService: ObservableObject {
     /// - Parameter recording: Recording to save
     /// - Throws: StorageError if save fails
     func saveRecording(_ recording: Recording) throws {
-        // TODO: Append to recordings array
-        // TODO: Persist to UserDefaults
-        // TODO: Update totalStorageUsed
-        // TODO: Post notification for UI refresh
+        // Append to recordings array
+        recordings.append(recording)
+
+        // Persist to UserDefaults
+        try persistToUserDefaults()
+
+        // Update total storage
+        totalStorageUsed = calculateTotalStorageUsed()
+
+        print("💾 Saved recording: \(recording.id)")
     }
 
     /// Load all recordings (excluding soft-deleted)
     /// - Returns: Array of active recordings
     func loadRecordings() -> [Recording] {
-        // TODO: Load from UserDefaults
-        // TODO: Decode JSON to [Recording]
-        // TODO: Filter out soft-deleted (deletedAt != nil)
-        // TODO: Sort by recordedAt descending
-        // TODO: Update recordings property
-        // TODO: Return array
-        return []
+        // Load from UserDefaults
+        var allRecordings = loadFromUserDefaults()
+
+        // Filter out soft-deleted
+        allRecordings = allRecordings.filter { $0.deletedAt == nil }
+
+        // Sort by recordedAt descending (newest first)
+        allRecordings.sort { $0.createdAt > $1.createdAt }
+
+        // Update published property
+        DispatchQueue.main.async {
+            self.recordings = allRecordings
+        }
+
+        return allRecordings
     }
 
     /// Get a specific recording by ID
     /// - Parameter id: Recording UUID
     /// - Returns: Recording if found, nil otherwise
     func getRecording(by id: UUID) -> Recording? {
-        // TODO: Search recordings array for matching ID
-        return nil
+        return recordings.first { $0.id == id }
     }
 
     /// Update an existing recording
     /// - Parameter recording: Recording with updated data
     /// - Throws: StorageError if recording not found
     func updateRecording(_ recording: Recording) throws {
-        // TODO: Find index of recording in array
-        // TODO: Replace with updated version
-        // TODO: Persist to UserDefaults
-        // TODO: Update recordings property
+        guard let index = recordings.firstIndex(where: { $0.id == recording.id }) else {
+            throw StorageError.recordingNotFound
+        }
+
+        // Replace with updated version
+        recordings[index] = recording
+
+        // Persist to UserDefaults
+        try persistToUserDefaults()
+
+        print("💾 Updated recording: \(recording.id)")
     }
 
     /// Soft delete a recording (sets deletedAt timestamp)
     /// - Parameter id: Recording UUID to delete
     /// - Throws: StorageError if recording not found
     func deleteRecording(by id: UUID) throws {
-        // TODO: Find recording by ID
-        // TODO: Set deletedAt to current time
-        // TODO: Update in storage
-        // TODO: Reload recordings (will filter out deleted)
+        guard var recording = getRecording(by: id) else {
+            throw StorageError.recordingNotFound
+        }
+
+        // Set deletedAt to current time
+        recording.deletedAt = Date()
+
+        // Update in storage
+        try updateRecording(recording)
+
+        // Reload recordings (will filter out deleted)
+        _ = loadRecordings()
+
+        print("🗑️ Soft deleted recording: \(id)")
     }
 
     /// Permanently delete a recording and its audio file
     /// - Parameter id: Recording UUID to permanently delete
     /// - Throws: StorageError if deletion fails
     func permanentlyDeleteRecording(by id: UUID) throws {
-        // TODO: Find recording by ID
-        // TODO: Delete audio file from disk
-        // TODO: Remove from recordings array
-        // TODO: Persist to UserDefaults
-        // TODO: Update totalStorageUsed
+        guard let recording = getRecording(by: id) else {
+            throw StorageError.recordingNotFound
+        }
+
+        // Delete audio file from disk
+        let fileURL = getFileURL(for: recording)
+        if fileManager.fileExists(atPath: fileURL.path) {
+            try fileManager.removeItem(at: fileURL)
+        }
+
+        // Remove from recordings array
+        recordings.removeAll { $0.id == id }
+
+        // Persist to UserDefaults
+        try persistToUserDefaults()
+
+        // Update total storage
+        totalStorageUsed = calculateTotalStorageUsed()
+
+        print("🗑️ Permanently deleted recording: \(id)")
     }
 
     // MARK: - File Management
@@ -147,16 +199,14 @@ class AudioStorageService: ObservableObject {
     /// - Parameter recording: Recording to check
     /// - Returns: True if file exists
     func audioFileExists(for recording: Recording) -> Bool {
-        // TODO: Get file URL from recording.filePath
-        // TODO: Check fileManager.fileExists
-        return false
+        let fileURL = getFileURL(for: recording)
+        return fileManager.fileExists(atPath: fileURL.path)
     }
 
     /// Get file URL for a recording
     /// - Parameter recording: Recording to get URL for
     /// - Returns: Full file URL
     func getFileURL(for recording: Recording) -> URL {
-        // TODO: Combine recordingsDirectoryURL with recording.filePath
         return recordingsDirectoryURL.appendingPathComponent(recording.filePath)
     }
 
@@ -164,27 +214,52 @@ class AudioStorageService: ObservableObject {
     /// - Parameter recording: Recording to check
     /// - Returns: File size in bytes, or 0 if file doesn't exist
     func getFileSize(for recording: Recording) -> Int64 {
-        // TODO: Get file URL
-        // TODO: Get file attributes
-        // TODO: Return file size
-        return 0
+        let fileURL = getFileURL(for: recording)
+
+        guard let attributes = try? fileManager.attributesOfItem(atPath: fileURL.path),
+              let fileSize = attributes[.size] as? Int64 else {
+            return 0
+        }
+
+        return fileSize
+    }
+
+    /// Get audio data for a recording
+    /// - Parameter recording: Recording to get data for
+    /// - Returns: Audio file data, or nil if file doesn't exist
+    func getAudioData(for recording: Recording) -> Data? {
+        let fileURL = getFileURL(for: recording)
+        return try? Data(contentsOf: fileURL)
     }
 
     /// Calculate total storage used by all recordings
     /// - Returns: Total bytes used
     func calculateTotalStorageUsed() -> Int64 {
-        // TODO: Iterate through all recordings
-        // TODO: Sum up file sizes
-        // TODO: Update totalStorageUsed property
-        // TODO: Return total
-        return 0
+        let total = recordings.reduce(0) { sum, recording in
+            sum + getFileSize(for: recording)
+        }
+
+        DispatchQueue.main.async {
+            self.totalStorageUsed = total
+        }
+
+        return total
     }
 
     /// Ensure recordings directory exists with proper encryption
     private func ensureRecordingsDirectoryExists() throws {
-        // TODO: Check if directory exists
-        // TODO: Create if needed with attributes
-        // TODO: Set NSFileProtectionComplete for encryption
+        let url = recordingsDirectoryURL
+
+        // Check if directory exists
+        if !fileManager.fileExists(atPath: url.path) {
+            // Create directory with encryption
+            try fileManager.createDirectory(
+                at: url,
+                withIntermediateDirectories: true,
+                attributes: [FileAttributeKey.protectionKey: FileProtectionType.complete]
+            )
+            print("📁 Created recordings directory with encryption")
+        }
     }
 
     // MARK: - Batch Operations
@@ -192,18 +267,21 @@ class AudioStorageService: ObservableObject {
     /// Get all recordings pending upload
     /// - Returns: Array of recordings where uploaded == false
     func getRecordingsPendingUpload() -> [Recording] {
-        // TODO: Filter recordings where uploaded == false
-        // TODO: Exclude soft-deleted
-        // TODO: Sort by recordedAt ascending (oldest first)
-        return []
+        return recordings
+            .filter { $0.deletedAt == nil && !$0.uploaded }
+            .sorted { $0.createdAt < $1.createdAt } // Oldest first
     }
 
     /// Get all recordings eligible for auto-deletion
     /// - Returns: Array of recordings past autoDeleteAt
     func getRecordingsPendingDeletion() -> [Recording] {
-        // TODO: Filter recordings where Date() >= autoDeleteAt
-        // TODO: Return array
-        return []
+        let now = Date()
+        return recordings.filter { recording in
+            if let autoDeleteAt = recording.autoDeleteAt {
+                return now >= autoDeleteAt
+            }
+            return false
+        }
     }
 
     /// Mark recording as uploaded
@@ -212,10 +290,16 @@ class AudioStorageService: ObservableObject {
     ///   - serverRecordingID: Server-assigned ID
     /// - Throws: StorageError if recording not found
     func markAsUploaded(id: UUID, serverRecordingID: UUID) throws {
-        // TODO: Find recording by ID
-        // TODO: Update uploaded = true
-        // TODO: Update serverRecordingID
-        // TODO: Persist changes
+        guard var recording = getRecording(by: id) else {
+            throw StorageError.recordingNotFound
+        }
+
+        recording.uploaded = true
+        recording.serverRecordingID = serverRecordingID
+
+        try updateRecording(recording)
+
+        print("✅ Marked recording as uploaded: \(id)")
     }
 
     /// Mark recording as analyzed
@@ -224,10 +308,16 @@ class AudioStorageService: ObservableObject {
     ///   - analysisID: Server-assigned analysis ID
     /// - Throws: StorageError if recording not found
     func markAsAnalyzed(id: UUID, analysisID: UUID) throws {
-        // TODO: Find recording by ID
-        // TODO: Update analyzed = true
-        // TODO: Update analysisID
-        // TODO: Persist changes
+        guard var recording = getRecording(by: id) else {
+            throw StorageError.recordingNotFound
+        }
+
+        recording.analyzed = true
+        recording.analysisID = analysisID
+
+        try updateRecording(recording)
+
+        print("✅ Marked recording as analyzed: \(id)")
     }
 
     // MARK: - Storage Statistics
@@ -235,16 +325,16 @@ class AudioStorageService: ObservableObject {
     /// Get storage statistics for UI display
     /// - Returns: StorageStats with counts and sizes
     func getStorageStats() -> StorageStats {
-        // TODO: Count total recordings
-        // TODO: Count pending upload
-        // TODO: Count analyzed
-        // TODO: Calculate total size
-        // TODO: Return stats struct
+        let totalRecordings = recordings.count
+        let pendingUpload = getRecordingsPendingUpload().count
+        let analyzedCount = recordings.filter { $0.analyzed }.count
+        let totalSize = calculateTotalStorageUsed()
+
         return StorageStats(
-            totalRecordings: 0,
-            pendingUpload: 0,
-            analyzedCount: 0,
-            totalSizeBytes: 0
+            totalRecordings: totalRecordings,
+            pendingUpload: pendingUpload,
+            analyzedCount: analyzedCount,
+            totalSizeBytes: totalSize
         )
     }
 
@@ -252,17 +342,32 @@ class AudioStorageService: ObservableObject {
 
     /// Persist recordings array to UserDefaults
     private func persistToUserDefaults() throws {
-        // TODO: Encode recordings to JSON
-        // TODO: Save to UserDefaults with recordingsKey
-        // TODO: Throw error if encoding fails
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+
+        do {
+            let data = try encoder.encode(recordings)
+            userDefaults.set(data, forKey: recordingsKey)
+        } catch {
+            throw StorageError.persistenceFailed(error.localizedDescription)
+        }
     }
 
     /// Load recordings array from UserDefaults
     private func loadFromUserDefaults() -> [Recording] {
-        // TODO: Get data from UserDefaults
-        // TODO: Decode JSON to [Recording]
-        // TODO: Return empty array if not found
-        return []
+        guard let data = userDefaults.data(forKey: recordingsKey) else {
+            return []
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        do {
+            return try decoder.decode([Recording].self, from: data)
+        } catch {
+            print("⚠️ Failed to decode recordings: \(error.localizedDescription)")
+            return []
+        }
     }
 
     // MARK: - OPTIONAL FEATURE: Cloud Sync

@@ -45,7 +45,7 @@ class APIService: ObservableObject {
     private let baseURL: URL
 
     /// Authentication token (hardcoded for single-user prototype)
-    private let authToken: String = "dev-prototype-token-12345"
+    private let authToken: String = "SINGLE_USER_DEV_TOKEN_12345"
 
     /// URLSession for network requests
     private let session: URLSession
@@ -104,13 +104,68 @@ class APIService: ObservableObject {
         recording: Recording,
         progressHandler: ((Double) -> Void)? = nil
     ) async throws -> AnalysisResult {
-        // TODO: Check network connectivity
-        // TODO: Build multipart/form-data request
-        // TODO: Add authentication header
-        // TODO: Upload audio file with progress tracking
-        // TODO: Parse JSON response to AnalysisResult
-        // TODO: Return result
-        fatalError("Not implemented")
+        // Check network connectivity
+        guard networkMonitor.isConnected else {
+            throw APIError.networkUnavailable
+        }
+
+        // Get file URL for recording
+        let storageService = AudioStorageService.shared
+        let fileURL = storageService.getFileURL(for: recording)
+
+        // Verify file exists
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            throw APIError.fileNotFound
+        }
+
+        // Determine MIME type from file extension
+        let mimeType: String
+        if fileURL.pathExtension.lowercased() == "m4a" {
+            mimeType = "audio/m4a"
+        } else if fileURL.pathExtension.lowercased() == "wav" {
+            mimeType = "audio/wav"
+        } else {
+            mimeType = "audio/mpeg"
+        }
+
+        // Build additional form fields
+        var additionalFields: [String: String] = [:]
+        if let title = recording.title {
+            additionalFields["title"] = title
+        }
+        if let notes = recording.notes {
+            additionalFields["notes"] = notes
+        }
+
+        // Build multipart request
+        let request = try buildMultipartRequest(
+            endpoint: "api/v1/analyze",
+            fileURL: fileURL,
+            fileName: fileURL.lastPathComponent,
+            mimeType: mimeType,
+            additionalFields: additionalFields
+        )
+
+        print("📤 Uploading recording: \(recording.id)")
+
+        // Execute request (progress tracking would require URLSessionDelegate)
+        let (data, response) = try await session.data(for: request)
+
+        // Validate response
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.requestFailed(0, "Invalid response")
+        }
+
+        try validateResponse(httpResponse)
+
+        // Decode response
+        do {
+            let analysisResult = try jsonDecoder.decode(AnalysisResult.self, from: data)
+            print("✅ Analysis received: \(analysisResult.id)")
+            return analysisResult
+        } catch {
+            throw APIError.decodingFailed(error)
+        }
     }
 
     /// Fetch existing analysis result by ID
@@ -118,12 +173,8 @@ class APIService: ObservableObject {
     /// - Returns: AnalysisResult from backend
     /// - Throws: APIError if fetch fails
     func fetchAnalysis(id: UUID) async throws -> AnalysisResult {
-        // TODO: Build GET request to /analysis/{id}
-        // TODO: Add authentication header
-        // TODO: Execute request
-        // TODO: Decode JSON response
-        // TODO: Return AnalysisResult
-        fatalError("Not implemented")
+        let request = buildRequest(endpoint: "api/v1/recordings/\(id.uuidString)/analysis")
+        return try await execute(request)
     }
 
     // MARK: - Reports Endpoints
@@ -133,14 +184,13 @@ class APIService: ObservableObject {
     /// - Returns: Report from backend
     /// - Throws: APIError if fetch fails or report not found
     func fetchReport(for date: Date) async throws -> Report {
-        // TODO: Format date as YYYY-MM-DD
-        // TODO: Build GET request to /reports/{date}
-        // TODO: Add authentication header
-        // TODO: Execute request
-        // TODO: Decode JSON response to Report
-        // TODO: Cache report locally
-        // TODO: Return Report
-        fatalError("Not implemented")
+        // Format date as YYYY-MM-DD
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let dateString = formatter.string(from: date)
+
+        let request = buildRequest(endpoint: "api/v1/reports/\(dateString)")
+        return try await execute(request)
     }
 
     /// Fetch reports for a date range
@@ -150,13 +200,14 @@ class APIService: ObservableObject {
     /// - Returns: Array of Report objects
     /// - Throws: APIError if fetch fails
     func fetchReports(from startDate: Date, to endDate: Date) async throws -> [Report] {
-        // TODO: Format dates as YYYY-MM-DD
-        // TODO: Build GET request to /reports?start={start}&end={end}
-        // TODO: Add authentication header
-        // TODO: Execute request
-        // TODO: Decode JSON response to [Report]
-        // TODO: Return array
-        return []
+        // Format dates as YYYY-MM-DD
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let startString = formatter.string(from: startDate)
+        let endString = formatter.string(from: endDate)
+
+        let request = buildRequest(endpoint: "api/v1/reports?start=\(startString)&end=\(endString)")
+        return try await execute(request)
     }
 
     // MARK: - Recordings Endpoints
@@ -165,22 +216,31 @@ class APIService: ObservableObject {
     /// - Returns: Array of Recording objects
     /// - Throws: APIError if fetch fails
     func fetchRecordings() async throws -> [Recording] {
-        // TODO: Build GET request to /recordings
-        // TODO: Add authentication header
-        // TODO: Execute request
-        // TODO: Decode JSON response to [Recording]
-        // TODO: Return array
-        return []
+        struct RecordingsListResponse: Codable {
+            let recordings: [Recording]
+            let total: Int
+        }
+
+        let request = buildRequest(endpoint: "api/v1/recordings")
+        let response: RecordingsListResponse = try await execute(request)
+        return response.recordings
     }
 
     /// Delete recording on backend
     /// - Parameter id: Recording UUID to delete
     /// - Throws: APIError if deletion fails
     func deleteRecording(id: UUID) async throws {
-        // TODO: Build DELETE request to /recordings/{id}
-        // TODO: Add authentication header
-        // TODO: Execute request
-        // TODO: Verify 204 No Content response
+        let request = buildRequest(endpoint: "api/v1/recordings/\(id.uuidString)", method: "DELETE")
+
+        let (_, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.requestFailed(0, "Invalid response")
+        }
+
+        try validateResponse(httpResponse)
+
+        print("🗑️ Deleted recording on server: \(id)")
     }
 
     // MARK: - Health Check
@@ -188,11 +248,31 @@ class APIService: ObservableObject {
     /// Check backend health and connectivity
     /// - Returns: True if backend is reachable and healthy
     func checkHealth() async -> Bool {
-        // TODO: Build GET request to /health
-        // TODO: Execute with short timeout
-        // TODO: Return true if status 200
-        // TODO: Return false on any error
-        return false
+        do {
+            let request = buildRequest(endpoint: "health")
+
+            // Add timeout for health check
+            var timeoutRequest = request
+            timeoutRequest.timeoutInterval = 5.0
+
+            let (data, response) = try await session.data(for: timeoutRequest)
+
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else {
+                return false
+            }
+
+            // Try to parse health response
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let status = json["status"] as? String {
+                return status == "healthy"
+            }
+
+            return true
+        } catch {
+            print("⚠️ Health check failed: \(error.localizedDescription)")
+            return false
+        }
     }
 
     // MARK: - OPTIONAL FEATURE: CEO Voice Synthesis
@@ -287,14 +367,23 @@ class APIService: ObservableObject {
         method: String = "GET",
         body: Data? = nil
     ) -> URLRequest {
-        // TODO: Combine baseURL with endpoint
-        // TODO: Create URLRequest
-        // TODO: Set HTTP method
-        // TODO: Add authentication header
-        // TODO: Add Content-Type header if body present
-        // TODO: Set body if provided
-        // TODO: Return request
-        fatalError("Not implemented")
+        // Combine baseURL with endpoint
+        let url = baseURL.appendingPathComponent(endpoint)
+
+        // Create URLRequest
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+
+        // Add authentication header
+        request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
+
+        // Add Content-Type header if body present
+        if body != nil {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = body
+        }
+
+        return request
     }
 
     /// Execute URLRequest and decode JSON response
@@ -302,13 +391,29 @@ class APIService: ObservableObject {
     /// - Returns: Decoded response of type T
     /// - Throws: APIError if request fails or JSON decoding fails
     private func execute<T: Decodable>(_ request: URLRequest) async throws -> T {
-        // TODO: Check network connectivity
-        // TODO: Execute request with URLSession
-        // TODO: Validate HTTP status code
-        // TODO: Decode JSON response
-        // TODO: Throw APIError on failure
-        // TODO: Return decoded result
-        fatalError("Not implemented")
+        // Check network connectivity
+        guard networkMonitor.isConnected else {
+            throw APIError.networkUnavailable
+        }
+
+        // Execute request
+        let (data, response) = try await session.data(for: request)
+
+        // Validate HTTP response
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.requestFailed(0, "Invalid response")
+        }
+
+        // Validate status code
+        try validateResponse(httpResponse)
+
+        // Decode JSON response
+        do {
+            let decoded = try jsonDecoder.decode(T.self, from: data)
+            return decoded
+        } catch {
+            throw APIError.decodingFailed(error)
+        }
     }
 
     /// Build multipart/form-data request for file upload
@@ -326,24 +431,66 @@ class APIService: ObservableObject {
         mimeType: String,
         additionalFields: [String: String] = [:]
     ) throws -> URLRequest {
-        // TODO: Generate boundary string
-        // TODO: Create URLRequest
-        // TODO: Set method to POST
-        // TODO: Add authentication header
-        // TODO: Set Content-Type to multipart/form-data with boundary
-        // TODO: Build multipart body with file data
-        // TODO: Add additional form fields
-        // TODO: Set httpBody
-        // TODO: Return request
-        fatalError("Not implemented")
+        // Generate boundary string
+        let boundary = "Boundary-\(UUID().uuidString)"
+
+        // Create URLRequest
+        let url = baseURL.appendingPathComponent(endpoint)
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+
+        // Add authentication header
+        request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
+
+        // Set Content-Type
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        // Build multipart body
+        var body = Data()
+
+        // Add additional form fields
+        for (key, value) in additionalFields {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"\(key)\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(value)\r\n".data(using: .utf8)!)
+        }
+
+        // Add file data
+        guard let fileData = try? Data(contentsOf: fileURL) else {
+            throw APIError.fileNotFound
+        }
+
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(fileName)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: \(mimeType)\r\n\r\n".data(using: .utf8)!)
+        body.append(fileData)
+        body.append("\r\n".data(using: .utf8)!)
+
+        // Close boundary
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+
+        request.httpBody = body
+
+        return request
     }
 
     /// Validate HTTP response status code
     /// - Parameter response: HTTPURLResponse to validate
     /// - Throws: APIError if status code indicates error
     private func validateResponse(_ response: HTTPURLResponse) throws {
-        // TODO: Check status code
-        // TODO: Throw appropriate APIError for 4xx/5xx codes
+        switch response.statusCode {
+        case 200...299:
+            // Success
+            return
+        case 401:
+            throw APIError.authenticationFailed
+        case 400...499:
+            throw APIError.requestFailed(response.statusCode, "Client error")
+        case 500...599:
+            throw APIError.serverError("Server returned status \(response.statusCode)")
+        default:
+            throw APIError.requestFailed(response.statusCode, "Unknown error")
+        }
     }
 
     // MARK: - Error Handling

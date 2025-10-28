@@ -67,9 +67,6 @@ class AnalysisViewModel: ObservableObject {
     /// API service for upload and fetching
     private let apiService: APIService
 
-    /// Cache service for offline access
-    private let cacheService: CacheService
-
     /// Storage service for updating recording status
     private let storageService: AudioStorageService
 
@@ -96,24 +93,19 @@ class AnalysisViewModel: ObservableObject {
     /// Initialize with service dependencies
     /// - Parameters:
     ///   - apiService: Service for backend communication
-    ///   - cacheService: Service for result caching
     ///   - storageService: Service for recording storage
     ///   - networkMonitor: Service for network status
     ///   - privacyManager: Service for privacy management
     init(
         apiService: APIService = .shared,
-        cacheService: CacheService = .shared,
         storageService: AudioStorageService = .shared,
         networkMonitor: NetworkMonitor = .shared,
         privacyManager: PrivacyManager = .shared
     ) {
         self.apiService = apiService
-        self.cacheService = cacheService
         self.storageService = storageService
         self.networkMonitor = networkMonitor
         self.privacyManager = privacyManager
-
-        // TODO: Set up Combine subscriptions
     }
 
     // MARK: - Upload and Analysis
@@ -121,35 +113,83 @@ class AnalysisViewModel: ObservableObject {
     /// Upload recording for analysis
     /// - Parameter recording: Recording to upload
     func uploadForAnalysis(recording: Recording) async {
-        // TODO: Store current recording
-        // TODO: Check upload consent
-        // TODO: Check network connectivity
-        // TODO: Set isUploading = true
-        // TODO: Upload via APIService with progress handler
-        // TODO: Update uploadProgress as upload proceeds
-        // TODO: Store analysis result when complete
-        // TODO: Cache result for offline access
-        // TODO: Mark recording as analyzed in storage
-        // TODO: Set isUploading = false
-        // TODO: Handle errors
+        // Store current recording
+        currentRecording = recording
+
+        // Check upload consent
+        let hasConsent = privacyManager.getUploadConsent()
+        if !hasConsent {
+            let granted = await requestUploadConsent()
+            if !granted {
+                errorMessage = "Upload cancelled: consent required"
+                return
+            }
+        }
+
+        // Check network connectivity
+        guard networkMonitor.isConnected else {
+            errorMessage = "No network connection available"
+            return
+        }
+
+        // Set isUploading = true
+        isUploading = true
+        uploadProgress = 0
+
+        do {
+            // Simulate progress updates (actual implementation would use URLSessionTaskDelegate)
+            uploadProgress = 0.3
+
+            // Upload via APIService
+            let analysis = try await apiService.uploadForAnalysis(recording: recording)
+
+            uploadProgress = 1.0
+
+            // Store analysis result when complete
+            analysisResult = analysis
+
+            // Mark recording as analyzed in storage
+            try storageService.markAsAnalyzed(id: recording.id, analysisID: analysis.id)
+
+            print("✅ Analysis complete: \(analysis.id)")
+
+        } catch {
+            handleError(error)
+        }
+
+        // Set isUploading = false
+        isUploading = false
     }
 
     /// Load existing analysis result
     /// - Parameter analysisID: Analysis UUID to load
     func loadAnalysis(analysisID: UUID) async {
-        // TODO: Set isLoading = true
-        // TODO: Check cache first
-        // TODO: If not in cache, fetch from API
-        // TODO: Update analysisResult property
-        // TODO: Cache result
-        // TODO: Set isLoading = false
-        // TODO: Handle errors
+        isLoading = true
+
+        do {
+            // Fetch from API (simplified - cache not implemented yet)
+            let analysis = try await apiService.fetchAnalysis(id: analysisID)
+
+            // Update analysisResult property
+            analysisResult = analysis
+
+            print("✅ Analysis loaded: \(analysisID)")
+
+        } catch {
+            handleError(error)
+        }
+
+        isLoading = false
     }
 
     /// Retry failed upload
     func retryUpload() async {
-        // TODO: Check if currentRecording exists
-        // TODO: Call uploadForAnalysis() again
+        guard let recording = currentRecording else {
+            errorMessage = "No recording to retry"
+            return
+        }
+
+        await uploadForAnalysis(recording: recording)
     }
 
     // MARK: - Critical Moments Navigation
@@ -157,43 +197,64 @@ class AnalysisViewModel: ObservableObject {
     /// Select a critical moment for detail view
     /// - Parameter moment: CriticalMoment to display
     func selectMoment(_ moment: CriticalMoment) {
-        // TODO: Set selectedMoment
-        // TODO: Navigate to detail view
+        selectedMoment = moment
+        print("📍 Selected moment: \(moment.pattern) at \(moment.timestamp)s")
     }
 
     /// Clear selected moment
     func clearSelectedMoment() {
-        // TODO: Set selectedMoment to nil
+        selectedMoment = nil
     }
 
     /// Navigate to next critical moment
     func nextMoment() {
-        // TODO: Get current index in criticalMoments array
-        // TODO: Move to next index (wrap around if at end)
-        // TODO: Update selectedMoment
+        guard let result = analysisResult,
+              !result.criticalMoments.isEmpty else { return }
+
+        if let current = selectedMoment,
+           let currentIndex = result.criticalMoments.firstIndex(where: { $0.id == current.id }) {
+            // Move to next index (wrap around if at end)
+            let nextIndex = (currentIndex + 1) % result.criticalMoments.count
+            selectedMoment = result.criticalMoments[nextIndex]
+        } else {
+            // Select first moment if none selected
+            selectedMoment = result.criticalMoments.first
+        }
     }
 
     /// Navigate to previous critical moment
     func previousMoment() {
-        // TODO: Get current index in criticalMoments array
-        // TODO: Move to previous index (wrap around if at start)
-        // TODO: Update selectedMoment
+        guard let result = analysisResult,
+              !result.criticalMoments.isEmpty else { return }
+
+        if let current = selectedMoment,
+           let currentIndex = result.criticalMoments.firstIndex(where: { $0.id == current.id }) {
+            // Move to previous index (wrap around if at start)
+            let previousIndex = currentIndex == 0 ? result.criticalMoments.count - 1 : currentIndex - 1
+            selectedMoment = result.criticalMoments[previousIndex]
+        } else {
+            // Select last moment if none selected
+            selectedMoment = result.criticalMoments.last
+        }
     }
 
     // MARK: - Score Breakdown
 
     /// Get all scores for charting
     var allScores: [(category: String, score: Double)] {
-        // TODO: Return analysisResult?.allScores or empty array
-        return analysisResult?.allScores ?? []
+        guard let result = analysisResult else { return [] }
+        return [
+            ("Power Dynamics", result.powerDynamicsScore),
+            ("Linguistic Authority", result.linguisticAuthorityScore),
+            ("Vocal Command", result.vocalCommandScore),
+            ("Persuasion", result.persuasionScore)
+        ]
     }
 
     /// Get color for a score value
     /// - Parameter score: Score value (0-100)
     /// - Returns: Color based on score range
     func colorForScore(_ score: Double) -> Color {
-        // TODO: Return color based on score range
-        // Green > 80, Yellow 60-80, Red < 60
         if score >= 80 {
             return .green
         } else if score >= 60 {
@@ -205,63 +266,78 @@ class AnalysisViewModel: ObservableObject {
 
     /// Get weakest category for improvement focus
     var weakestCategory: String? {
-        // TODO: Return analysisResult?.weakestCategory
-        return analysisResult?.weakestCategory
+        let scores = allScores
+        return scores.min(by: { $0.score < $1.score })?.category
     }
 
     /// Get strongest category for positive reinforcement
     var strongestCategory: String? {
-        // TODO: Return analysisResult?.strongestCategory
-        return analysisResult?.strongestCategory
+        let scores = allScores
+        return scores.max(by: { $0.score < $1.score })?.category
     }
 
     // MARK: - Pattern Details
 
     /// Get filler words breakdown
     var fillerWordsBreakdown: [String: Int] {
-        // TODO: Return analysisResult?.patterns.fillerWords.words or empty dict
-        return analysisResult?.patterns.fillerWords.words ?? [:]
+        return analysisResult?.fillerWordsData?.words ?? [:]
     }
 
     /// Get hedging phrases breakdown
     var hedgingPhrasesBreakdown: [String: Int] {
-        // TODO: Return analysisResult?.patterns.hedging.phrases or empty dict
-        return analysisResult?.patterns.hedging.phrases ?? [:]
+        return analysisResult?.hedgingData?.phrases ?? [:]
     }
 
     /// Get filler words per minute
     var fillerWordsPerMinute: Double {
-        // TODO: Return analysisResult?.patterns.fillerWords.perMinute or 0
-        return analysisResult?.patterns.fillerWords.perMinute ?? 0
+        return analysisResult?.fillerWordsData?.perMinute ?? 0
     }
 
-    /// Get words per minute (speaking pace)
-    var wordsPerMinute: Double {
-        // TODO: Return analysisResult?.patterns.wordsPerMinute or 0
-        return analysisResult?.patterns.wordsPerMinute ?? 0
+    /// Get total filler words count
+    var fillerWordsCount: Int {
+        return analysisResult?.fillerWordsData?.totalCount ?? 0
+    }
+
+    /// Get total hedging phrases count
+    var hedgingPhrasesCount: Int {
+        return analysisResult?.hedgingData?.totalCount ?? 0
     }
 
     // MARK: - Upload Consent
 
     /// Request upload consent from user
     func requestUploadConsent() async -> Bool {
-        // TODO: Check if consent already granted
-        // TODO: Show consent dialog via privacyManager
-        // TODO: Return user's decision
-        return false
+        // Check if consent already granted
+        if privacyManager.getUploadConsent() {
+            return true
+        }
+
+        // Show consent dialog via privacyManager
+        let granted = await privacyManager.requestUploadConsent()
+
+        return granted
     }
 
     /// Confirm upload consent
     func confirmUploadConsent() {
-        // TODO: Set upload consent in privacyManager
-        // TODO: Set showUploadConsent = false
-        // TODO: Proceed with upload
+        // Set upload consent in privacyManager
+        privacyManager.setUploadConsent(true)
+
+        // Set showUploadConsent = false
+        showUploadConsent = false
+
+        print("✅ Upload consent granted")
     }
 
     /// Decline upload consent
     func declineUploadConsent() {
-        // TODO: Set showUploadConsent = false
-        // TODO: Cancel upload
+        // Set showUploadConsent = false
+        showUploadConsent = false
+
+        // Cancel upload
+        errorMessage = "Upload cancelled by user"
+
+        print("❌ Upload consent declined")
     }
 
     // MARK: - OPTIONAL FEATURE: CEO Voice Synthesis
@@ -286,8 +362,8 @@ class AnalysisViewModel: ObservableObject {
     /// - Parameter id: Analysis UUID
     /// - Returns: True if cached
     func isCached(analysisID: UUID) -> Bool {
-        // TODO: Check cacheService.getAnalysis()
-        return cacheService.getAnalysis(id: analysisID) != nil
+        // Cache not implemented yet for prototype
+        return false
     }
 
     // MARK: - Error Handling
@@ -295,14 +371,21 @@ class AnalysisViewModel: ObservableObject {
     /// Handle errors
     /// - Parameter error: Error that occurred
     private func handleError(_ error: Error) {
-        // TODO: Set errorMessage from error.localizedDescription
-        // TODO: Log error for debugging
-        // TODO: Reset loading states
+        // Log error for debugging
+        print("❌ AnalysisViewModel Error: \(error.localizedDescription)")
+
+        // Set errorMessage from error.localizedDescription
+        errorMessage = error.localizedDescription
+
+        // Reset loading states
+        isLoading = false
+        isUploading = false
+        uploadProgress = 0
     }
 
     /// Clear current error
     func clearError() {
-        // TODO: Set errorMessage to nil
+        errorMessage = nil
     }
 
     // MARK: - Network Status

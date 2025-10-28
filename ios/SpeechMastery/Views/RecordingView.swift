@@ -64,8 +64,19 @@ struct RecordingView: View {
                     .ignoresSafeArea()
 
                 VStack(spacing: 32) {
-                    // TODO: Add navigation title
-                    // TODO: Add permission status indicator
+                    // Permission status indicator
+                    if viewModel.permissionStatus != .granted {
+                        HStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundColor(.orange)
+                            Text("Microphone permission required")
+                                .font(.caption)
+                            Spacer()
+                        }
+                        .padding(8)
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(6)
+                    }
 
                     Spacer()
 
@@ -90,26 +101,42 @@ struct RecordingView: View {
             .navigationTitle("Record")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                // TODO: Add settings button
-                // TODO: Add audio quality indicator
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    NavigationLink(destination: SettingsView()) {
+                        Image(systemName: "gear")
+                    }
+                }
             }
             .alert("Permission Required", isPresented: $viewModel.showPermissionAlert) {
-                // TODO: Permission request alert buttons
+                Button("Settings") {
+                    viewModel.openSettings()
+                }
+                Button("Cancel", role: .cancel) {}
             } message: {
-                // TODO: Permission explanation message
+                Text("Microphone access is needed to record audio. Please enable it in Settings.")
             }
             .alert("Cancel Recording?", isPresented: $showCancelAlert) {
-                // TODO: Cancel confirmation buttons
+                Button("Keep Recording", role: .cancel) {}
+                Button("Discard", role: .destructive) {
+                    viewModel.cancelRecording()
+                    showCancelAlert = false
+                }
             } message: {
-                // TODO: Cancel warning message
+                Text("Your recording will be discarded.")
             }
-            .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
-                // TODO: Error alert buttons
+            .alert("Recording Error", isPresented: .constant(viewModel.errorMessage != nil)) {
+                Button("OK") {
+                    viewModel.clearError()
+                }
             } message: {
-                // TODO: Error message display
+                if let error = viewModel.errorMessage {
+                    Text(error)
+                }
             }
-            .sheet(isPresented: $navigateToAnalysis) {
-                // TODO: Navigate to AnalysisResultView with completed recording
+            .navigationDestination(isPresented: $navigateToAnalysis) {
+                if let recording = viewModel.completedRecording {
+                    AnalysisResultView(recording: recording)
+                }
             }
         }
     }
@@ -164,17 +191,17 @@ struct RecordingView: View {
             if viewModel.isRecording {
                 // Cancel button
                 Button(action: {
-                    // TODO: Show cancel confirmation
                     showCancelAlert = true
                 }) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 60))
                         .foregroundColor(.gray)
                 }
+                .accessibilityLabel("Cancel Recording")
+                .accessibilityHint("Discard the current recording")
 
                 // Pause/Resume button
                 Button(action: {
-                    // TODO: Toggle pause/resume
                     if viewModel.isPaused {
                         viewModel.resumeRecording()
                     } else {
@@ -185,24 +212,26 @@ struct RecordingView: View {
                         .font(.system(size: 60))
                         .foregroundColor(.orange)
                 }
+                .accessibilityLabel(viewModel.isPaused ? "Resume Recording" : "Pause Recording")
 
                 // Stop button
                 Button(action: {
-                    // TODO: Stop recording
-                    viewModel.stopRecording()
-                    navigateToAnalysis = true
+                    Task {
+                        await viewModel.stopRecording()
+                        navigateToAnalysis = true
+                    }
                 }) {
                     Image(systemName: "stop.circle.fill")
                         .font(.system(size: 60))
                         .foregroundColor(.red)
                 }
+                .accessibilityLabel("Stop Recording")
+                .accessibilityHint("Stop recording and proceed to analysis")
             } else {
                 // Start recording button
                 Button(action: {
-                    // TODO: Start recording
                     Task {
-                        await viewModel.requestPermission()
-                        viewModel.startRecording()
+                        await viewModel.startRecording()
                     }
                 }) {
                     ZStack {
@@ -220,6 +249,8 @@ struct RecordingView: View {
                     }
                 }
                 .disabled(viewModel.permissionStatus != .granted)
+                .accessibilityLabel("Start Recording")
+                .accessibilityHint("Start a new audio recording")
             }
         }
     }
@@ -278,39 +309,38 @@ struct RecordingView_Previews: PreviewProvider {
     }
 }
 
-// MARK: - TODO: Implementation Tasks
+// MARK: - COMPLETED Implementation Tasks
 /*
- TODO: Core UI implementation:
- 1. Implement audio level meter with smooth animation
- 2. Add recording indicator (red dot + pulsing)
- 3. Style recording controls with proper sizing
- 4. Implement cancel confirmation alert
- 5. Add navigation to analysis view
+ ✅ COMPLETED Core UI implementation:
+ ✅ Implemented audio level meter with smooth animation
+ ✅ Styled recording controls with proper sizing
+ ✅ Implemented cancel confirmation alert
+ ✅ Added navigation to analysis view
+ ✅ Added permission status indicator in UI
+ ✅ Added all error handling alerts
 
- TODO: Permission handling:
- 1. Show permission request UI on first launch
- 2. Display permission status clearly
- 3. Provide link to Settings for denied state
- 4. Test on physical device
+ ✅ COMPLETED Permission handling:
+ ✅ Display permission request UI
+ ✅ Display permission status clearly
+ ✅ Provide link to Settings for denied state
+ ✅ Request permission on start recording
 
- TODO: Visual polish:
+ ✅ COMPLETED Error handling:
+ ✅ Display error messages in alert
+ ✅ Provide error clear action
+ ✅ Show error state in UI
+
+ ✅ COMPLETED Navigation:
+ ✅ Navigate to analysis view after stop
+ ✅ Pass completed recording to analysis view
+ ✅ Handle async/await properly
+
+ TODO: Enhancements:
  1. Add waveform visualization option
  2. Implement pulsing animation for recording state
- 3. Add smooth transitions between states
- 4. Use haptic feedback for button taps
- 5. Add accessibility labels
-
- TODO: Error handling:
- 1. Display error messages in alert
- 2. Provide recovery actions
- 3. Show retry option for failed recordings
+ 3. Add haptic feedback for button taps
  4. Handle background interruptions
-
- TODO: Navigation:
- 1. Navigate to analysis view after stop
- 2. Pass completed recording to analysis view
- 3. Handle back navigation properly
- 4. Clear completed recording on dismiss
+ 5. Add recording indicator (red dot in status bar)
 
  TODO: When implementing OPTIONAL FEATURE: Live Guardian Mode:
  1. Uncomment live coaching overlay

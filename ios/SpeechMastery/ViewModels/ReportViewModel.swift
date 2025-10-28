@@ -104,21 +104,28 @@ class ReportViewModel: ObservableObject {
 
     /// Fetch report for selected date
     func fetchReport() async {
-        // TODO: Set isLoading = true
-        // TODO: Check cache first
-        // TODO: If not cached, check network and fetch from API
-        // TODO: Update currentReport
-        // TODO: Set reportAvailable based on result
-        // TODO: Cache report for offline access
-        // TODO: Set isLoading = false
-        // TODO: Handle errors
+        isLoading = true
+
+        do {
+            // For prototype, create mock report with available data
+            // In production, would fetch from API
+            currentReport = createMockReportForDate(selectedDate)
+            reportAvailable = currentReport != nil
+
+            print("✅ Report loaded for: \(formattedSelectedDate)")
+
+        } catch {
+            handleError(error)
+        }
+
+        isLoading = false
     }
 
     /// Load report for specific date
     /// - Parameter date: Date to load report for
-    func loadReport(for date: Date) async {
-        // TODO: Set selectedDate
-        // TODO: Call fetchReport()
+    func loadReportForDate(_ date: Date) async {
+        selectedDate = date
+        await fetchReport()
     }
 
     /// Refresh current report
@@ -321,6 +328,51 @@ class ReportViewModel: ObservableObject {
     //     TODO: Sort by date ascending
     // }
 
+    // MARK: - Mock Data (for Prototype)
+
+    /// Create a mock report for testing
+    private func createMockReportForDate(_ date: Date) -> Report? {
+        // In production, this would be fetched from API
+        // For now, return sample data if date is recent (last 7 days)
+        let daysSinceDate = Calendar.current.dateComponents([.day], from: date, to: Date()).day ?? 0
+
+        // Only provide reports for past dates (up to 7 days)
+        guard daysSinceDate >= 0 && daysSinceDate <= 7 else {
+            return nil
+        }
+
+        let isToday = Calendar.current.isDateInToday(date)
+        let scoreVariance = isToday ? Double.random(in: 70...85) : Double.random(in: 60...80)
+        let pdScore = scoreVariance + Double.random(in: -10...10)
+        let laScore = scoreVariance + Double.random(in: -10...10)
+        let vcScore = scoreVariance + Double.random(in: -10...10)
+        let piScore = scoreVariance + Double.random(in: -10...10)
+
+        return Report(
+            reportDate: date,
+            overallScore: scoreVariance,
+            powerDynamicsScore: pdScore,
+            linguisticAuthorityScore: laScore,
+            vocalCommandScore: vcScore,
+            persuasionInfluenceScore: piScore,
+            recordingsAnalyzed: isToday ? 1 : Int.random(in: 2...5),
+            totalDuration: Double(Int.random(in: 300...1200)),
+            topPatterns: [
+                TopPattern(patternName: "Filler Words", count: Int.random(in: 3...8)),
+                TopPattern(patternName: "Hedging Language", count: Int.random(in: 2...6)),
+                TopPattern(patternName: "Passive Voice", count: Int.random(in: 1...4))
+            ],
+            criticalMoments: [],
+            improvementSuggestions: [
+                "Reduce filler words usage",
+                "Use more active voice",
+                "Speak with greater confidence"
+            ],
+            scoreChange24h: isToday ? nil : Double.random(in: -5...5),
+            scoreChange7d: Double.random(in: -5...5)
+        )
+    }
+
     // MARK: - Caching
 
     /// Check if report is cached for offline viewing
@@ -331,14 +383,59 @@ class ReportViewModel: ObservableObject {
         return cacheService.getReport(for: date) != nil
     }
 
+    // MARK: - Helper Properties (for DailyReportView compatibility)
+
+    /// Check if has data for specific date
+    func hasDataForDate(_ date: Date) -> Bool {
+        // In prototype, assume we have data if report is loaded
+        return reportAvailable && Calendar.current.isDate(selectedDate, inSameDayAs: date)
+    }
+
+    /// Daily average score
+    var dailyAverageScore: Double {
+        return currentReport?.overallScore ?? 0
+    }
+
+    /// Number of recordings analyzed
+    var recordingsCount: Int {
+        return currentReport?.recordingsAnalyzed ?? 0
+    }
+
+    /// Category averages dictionary
+    var categoryAverages: [String: Double] {
+        guard let report = currentReport else { return [:] }
+        return [
+            "power_dynamics": report.powerDynamicsScore,
+            "linguistic_authority": report.linguisticAuthorityScore,
+            "vocal_command": report.vocalCommandScore,
+            "persuasion": report.persuasionInfluenceScore
+        ]
+    }
+
+    /// Top patterns dictionary
+    var topPatterns: [String: Int] {
+        guard let report = currentReport else { return [:] }
+        return Dictionary(uniqueKeysWithValues: report.topPatterns.map { ($0.patternName, $0.count) })
+    }
+
+    /// Improvement suggestions array
+    var suggestions: [String] {
+        return currentReport?.improvementSuggestions ?? []
+    }
+
     // MARK: - Error Handling
 
     /// Handle errors
     /// - Parameter error: Error that occurred
     private func handleError(_ error: Error) {
-        // TODO: Set errorMessage from error.localizedDescription
-        // TODO: Set reportAvailable = false
-        // TODO: Log error for debugging
+        // Log error for debugging
+        print("❌ ReportViewModel Error: \(error.localizedDescription)")
+
+        // Set errorMessage from error.localizedDescription
+        errorMessage = error.localizedDescription
+
+        // Set reportAvailable = false
+        reportAvailable = false
     }
 
     /// Clear current error

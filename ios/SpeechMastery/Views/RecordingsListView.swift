@@ -153,16 +153,21 @@ struct RecordingsListView: View {
     /// Individual recording row
     /// - Parameter recording: Recording to display
     private func recordingRow(_ recording: Recording) -> some View {
-        NavigationLink {
-            // TODO: Navigate to AnalysisResultView if analyzed
-            // TODO: Navigate to upload view if not analyzed
-            Text("Analysis view placeholder")
-        } label: {
+        NavigationLink(destination: recordingDetailView(recording)) {
             HStack {
-                // Icon
-                Image(systemName: recording.analyzed ? "checkmark.circle.fill" : "clock.fill")
-                    .foregroundColor(recording.analyzed ? .green : .orange)
-                    .font(.title2)
+                // Icon with status
+                VStack(spacing: 4) {
+                    Image(systemName: recording.analyzed ? "checkmark.circle.fill" : "clock.fill")
+                        .foregroundColor(recording.analyzed ? .green : .orange)
+                        .font(.title2)
+
+                    if !recording.uploaded {
+                        Image(systemName: "icloud.and.arrow.up")
+                            .font(.caption2)
+                            .foregroundColor(.orange)
+                    }
+                }
+                .frame(width: 30)
 
                 VStack(alignment: .leading, spacing: 4) {
                     // Date
@@ -174,10 +179,6 @@ struct RecordingsListView: View {
                         Label(recording.formattedDuration, systemImage: "clock")
                         // File size
                         Label(recording.formattedFileSize, systemImage: "doc")
-                        // Status
-                        if !recording.uploaded {
-                            Label("Pending", systemImage: "icloud.and.arrow.up")
-                        }
                     }
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -187,18 +188,99 @@ struct RecordingsListView: View {
 
                 // Score (if analyzed)
                 if recording.analyzed, let score = recording.analysisResult?.overallScore {
-                    VStack {
+                    VStack(alignment: .trailing, spacing: 2) {
                         Text("\(Int(score))")
                             .font(.title2)
                             .fontWeight(.bold)
+                            .foregroundColor(scoreColor(score))
 
                         Text("Score")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                } else if !recording.analyzed {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Image(systemName: "arrow.right.circle")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+
+                        Text("Analyze")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
                 }
             }
             .padding(.vertical, 4)
+        }
+    }
+
+    /// Determine view to navigate to based on recording status
+    @ViewBuilder
+    private func recordingDetailView(_ recording: Recording) -> some View {
+        if recording.analyzed, let analysis = recording.analysisResult {
+            // Show analysis result
+            AnalysisResultView(
+                recording: recording,
+                analysisResult: analysis
+            )
+        } else {
+            // Show upload/analysis view
+            ZStack {
+                Color(UIColor.systemGroupedBackground)
+                    .ignoresSafeArea()
+
+                VStack(spacing: 24) {
+                    Spacer()
+
+                    VStack(spacing: 16) {
+                        Image(systemName: "waveform.circle.fill")
+                            .font(.system(size: 60))
+                            .foregroundColor(.orange)
+
+                        VStack(spacing: 8) {
+                            Text("Ready to Analyze")
+                                .font(.headline)
+
+                            Text("This recording hasn't been analyzed yet. Tap the button below to upload and analyze.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                    }
+
+                    Spacer()
+
+                    Button(action: {
+                        // TODO: Upload for analysis
+                    }) {
+                        HStack {
+                            Image(systemName: "cloud.and.arrow.up")
+                            Text("Upload for Analysis")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.accentColor)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                    }
+
+                    Spacer()
+                }
+                .padding()
+            }
+            .navigationTitle("Recording")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    /// Get score color
+    private func scoreColor(_ score: Double) -> Color {
+        if score >= 80 {
+            return .green
+        } else if score >= 60 {
+            return .yellow
+        } else {
+            return .red
         }
     }
 

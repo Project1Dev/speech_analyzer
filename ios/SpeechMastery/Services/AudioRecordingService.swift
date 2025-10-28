@@ -97,52 +97,169 @@ class AudioRecordingService: NSObject, ObservableObject {
     /// Start a new recording session
     /// - Throws: RecordingError if permissions denied or setup fails
     func startRecording() throws {
-        // TODO: Check microphone permissions via PrivacyManager
-        // TODO: Configure AVAudioSession for recording
-        // TODO: Generate timestamped file path
-        // TODO: Create AVAudioRecorder with AudioSettings
-        // TODO: Start recording
-        // TODO: Start level monitoring timer
-        // TODO: Update published properties
-        // TODO: Notify PrivacyManager to show recording indicator
+        // Check if already recording
+        guard !isRecording else {
+            throw RecordingError.alreadyRecording
+        }
+
+        // Check microphone permissions
+        guard privacyManager.hasMicrophonePermission() else {
+            throw RecordingError.permissionDenied
+        }
+
+        // Configure audio session
+        try configureAudioSession()
+
+        // Ensure recordings directory exists
+        try ensureRecordingsDirectory()
+
+        // Generate file path
+        let filePath = generateFilePath()
+        let fileURL = getFileURL(for: filePath)
+
+        // Create audio recorder with settings
+        let recorderSettings: [String: Any] = [
+            AVFormatIDKey: audioSettings.formatID,
+            AVSampleRateKey: audioSettings.sampleRate,
+            AVNumberOfChannelsKey: audioSettings.numberOfChannels,
+            AVEncoderBitRateKey: audioSettings.bitRate,
+            AVEncoderAudioQualityKey: audioSettings.quality.rawValue
+        ]
+
+        do {
+            audioRecorder = try AVAudioRecorder(url: fileURL, settings: recorderSettings)
+            audioRecorder?.delegate = self
+            audioRecorder?.isMeteringEnabled = true
+
+            // Start recording
+            guard audioRecorder?.record() == true else {
+                throw RecordingError.recordingFailed("Failed to start AVAudioRecorder")
+            }
+
+            // Update state
+            recordingStartTime = Date()
+            currentRecordingPath = filePath
+            isRecording = true
+            isPaused = false
+            recordingDuration = 0
+
+            // Start level monitoring
+            startLevelMonitoring()
+
+            print("✅ Recording started: \(filePath)")
+
+        } catch {
+            throw RecordingError.recordingFailed(error.localizedDescription)
+        }
     }
 
     /// Pause the current recording
     func pauseRecording() {
-        // TODO: Call audioRecorder.pause()
-        // TODO: Stop level monitoring timer
-        // TODO: Update isPaused property
+        guard isRecording, !isPaused else { return }
+
+        audioRecorder?.pause()
+        stopLevelMonitoring()
+        isPaused = true
+
+        print("⏸️ Recording paused")
     }
 
     /// Resume a paused recording
     func resumeRecording() {
-        // TODO: Call audioRecorder.record()
-        // TODO: Restart level monitoring timer
-        // TODO: Update isPaused property
+        guard isRecording, isPaused else { return }
+
+        audioRecorder?.record()
+        startLevelMonitoring()
+        isPaused = false
+
+        print("▶️ Recording resumed")
     }
 
     /// Stop the current recording and return file information
     /// - Returns: Recording model with metadata
     /// - Throws: RecordingError if stop fails or file is invalid
     func stopRecording() throws -> Recording {
-        // TODO: Stop level monitoring timer
-        // TODO: Stop AVAudioRecorder
-        // TODO: Calculate final duration
-        // TODO: Get file size
-        // TODO: Create Recording model
-        // TODO: Update published properties
-        // TODO: Notify PrivacyManager to hide recording indicator
-        // TODO: Return Recording instance
-        fatalError("Not implemented")
+        guard isRecording else {
+            throw RecordingError.notRecording
+        }
+
+        // Stop level monitoring
+        stopLevelMonitoring()
+
+        // Stop audio recorder
+        audioRecorder?.stop()
+
+        // Get file information
+        guard let filePath = currentRecordingPath else {
+            throw RecordingError.fileCreationFailed
+        }
+
+        let fileURL = getFileURL(for: filePath)
+
+        // Get file size
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: fileURL.path),
+              let fileSize = attributes[.size] as? Int64 else {
+            throw RecordingError.fileCreationFailed
+        }
+
+        // Calculate final duration
+        let finalDuration = recordingDuration
+
+        // Deactivate audio session
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+
+        // Create Recording model
+        let recording = Recording(
+            id: UUID(),
+            filePath: filePath,
+            fileSize: fileSize,
+            duration: finalDuration,
+            createdAt: recordingStartTime ?? Date(),
+            updatedAt: Date()
+        )
+
+        // Reset state
+        isRecording = false
+        isPaused = false
+        recordingDuration = 0
+        audioLevel = 0
+        currentRecordingPath = nil
+        recordingStartTime = nil
+        audioRecorder = nil
+
+        print("⏹️ Recording stopped: \(filePath) (\(finalDuration)s, \(fileSize) bytes)")
+
+        return recording
     }
 
     /// Cancel the current recording and delete file
     func cancelRecording() {
-        // TODO: Stop audioRecorder
-        // TODO: Delete recording file
-        // TODO: Stop level monitoring timer
-        // TODO: Update published properties
-        // TODO: Notify PrivacyManager to hide recording indicator
+        guard isRecording else { return }
+
+        // Stop monitoring
+        stopLevelMonitoring()
+
+        // Stop recorder
+        audioRecorder?.stop()
+
+        // Delete file
+        if let filePath = currentRecordingPath {
+            let fileURL = getFileURL(for: filePath)
+            try? FileManager.default.removeItem(at: fileURL)
+            print("🗑️ Recording cancelled and deleted: \(filePath)")
+        }
+
+        // Deactivate audio session
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+
+        // Reset state
+        isRecording = false
+        isPaused = false
+        recordingDuration = 0
+        audioLevel = 0
+        currentRecordingPath = nil
+        recordingStartTime = nil
+        audioRecorder = nil
     }
 
     // MARK: - Audio Configuration
@@ -151,41 +268,72 @@ class AudioRecordingService: NSObject, ObservableObject {
     /// - Parameter settings: New audio quality settings
     /// - Throws: RecordingError if called while recording
     func updateAudioSettings(_ settings: AudioSettings) throws {
-        // TODO: Check if not currently recording
-        // TODO: Update audioSettings property
-        // TODO: Save as user default
+        guard !isRecording else {
+            throw RecordingError.invalidSettings
+        }
+
+        self.audioSettings = settings
+        print("🎚️ Audio settings updated: \(settings.quality)")
     }
 
     /// Configure AVAudioSession for recording
     private func configureAudioSession() throws {
-        // TODO: Get shared AVAudioSession
-        // TODO: Set category to .record
-        // TODO: Set mode to .measurement or .spokenAudio
-        // TODO: Activate session
+        let audioSession = AVAudioSession.sharedInstance()
+
+        try audioSession.setCategory(.playAndRecord, mode: .spokenAudio, options: [.defaultToSpeaker, .allowBluetooth])
+        try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+
+        print("🎤 Audio session configured")
     }
 
     // MARK: - Level Monitoring
 
     /// Start monitoring audio levels for visual feedback
     private func startLevelMonitoring() {
-        // TODO: Enable metering on audioRecorder
-        // TODO: Create timer that fires every 0.1 seconds
-        // TODO: Update audioLevel and recordingDuration in timer callback
+        // Create timer that fires every 0.1 seconds
+        levelTimer = Timer.scheduledTimer(
+            timeInterval: 0.1,
+            target: self,
+            selector: #selector(updateMeters),
+            userInfo: nil,
+            repeats: true
+        )
     }
 
     /// Stop monitoring audio levels
     private func stopLevelMonitoring() {
-        // TODO: Invalidate levelTimer
-        // TODO: Reset audioLevel to 0
+        levelTimer?.invalidate()
+        levelTimer = nil
+        audioLevel = 0
     }
 
     /// Update audio level from AVAudioRecorder metering
     @objc private func updateMeters() {
-        // TODO: Call audioRecorder.updateMeters()
-        // TODO: Get averagePower(forChannel: 0)
-        // TODO: Convert decibels to 0-1 scale
-        // TODO: Update audioLevel property
-        // TODO: Update recordingDuration
+        guard let recorder = audioRecorder, isRecording else { return }
+
+        // Update metering
+        recorder.updateMeters()
+
+        // Get average power in decibels (-160 to 0)
+        let averagePower = recorder.averagePower(forChannel: 0)
+
+        // Convert decibels to 0-1 scale
+        // -160 dB = silence, 0 dB = maximum
+        // Use -50 dB as minimum threshold for better visual feedback
+        let minDb: Float = -50.0
+        let normalizedPower = max(0.0, min(1.0, (averagePower - minDb) / (0 - minDb)))
+
+        // Update published property on main thread
+        DispatchQueue.main.async {
+            self.audioLevel = normalizedPower
+        }
+
+        // Update recording duration
+        if let startTime = recordingStartTime {
+            DispatchQueue.main.async {
+                self.recordingDuration = Date().timeIntervalSince(startTime)
+            }
+        }
     }
 
     // MARK: - File Management
@@ -193,27 +341,50 @@ class AudioRecordingService: NSObject, ObservableObject {
     /// Generate unique file path for new recording
     /// - Returns: Relative file path in recordings directory
     private func generateFilePath() -> String {
-        // TODO: Create timestamp-based filename (YYYY-MM-DD_HH-mm-ss)
-        // TODO: Append audio format extension from settings
-        // TODO: Return relative path: "recordings/2025-10-23_14-30-45.m4a"
-        fatalError("Not implemented")
+        // Create timestamp-based filename
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        let timestamp = formatter.string(from: Date())
+
+        // Get file extension from audio settings
+        let fileExtension: String
+        switch audioSettings.formatID {
+        case kAudioFormatMPEG4AAC:
+            fileExtension = "m4a"
+        case kAudioFormatAppleLossless:
+            fileExtension = "m4a"
+        case kAudioFormatLinearPCM:
+            fileExtension = "wav"
+        default:
+            fileExtension = "m4a"
+        }
+
+        // Return relative path
+        return "recordings/\(timestamp).\(fileExtension)"
     }
 
     /// Get full URL for recording file
     /// - Parameter relativePath: Relative path from generateFilePath()
     /// - Returns: Full URL in Documents directory
     private func getFileURL(for relativePath: String) -> URL {
-        // TODO: Get Documents directory URL
-        // TODO: Append relative path
-        // TODO: Return full URL
-        fatalError("Not implemented")
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return documentsPath.appendingPathComponent(relativePath)
     }
 
     /// Ensure recordings directory exists
     private func ensureRecordingsDirectory() throws {
-        // TODO: Get Documents/recordings directory URL
-        // TODO: Create directory if it doesn't exist
-        // TODO: Set file protection to .complete for encryption
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let recordingsPath = documentsPath.appendingPathComponent("recordings")
+
+        // Create directory if it doesn't exist
+        if !FileManager.default.fileExists(atPath: recordingsPath.path) {
+            try FileManager.default.createDirectory(
+                at: recordingsPath,
+                withIntermediateDirectories: true,
+                attributes: [FileAttributeKey.protectionKey: FileProtectionType.complete]
+            )
+            print("📁 Created recordings directory with encryption")
+        }
     }
 
     // MARK: - OPTIONAL FEATURE: Live Guardian Mode
@@ -279,16 +450,35 @@ extension AudioRecordingService: AVAudioRecorderDelegate {
 
     /// Called when recording finishes successfully
     func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
-        // TODO: Handle recording completion
-        // TODO: Update UI state if needed
-        // TODO: Log success or failure
+        if flag {
+            print("✅ Recording finished successfully")
+        } else {
+            print("❌ Recording finished with errors")
+            // Clean up on failure
+            if let filePath = currentRecordingPath {
+                let fileURL = getFileURL(for: filePath)
+                try? FileManager.default.removeItem(at: fileURL)
+            }
+        }
     }
 
     /// Called when encoding error occurs
     func audioRecorderEncodeErrorDidOccur(_ recorder: AVAudioRecorder, error: Error?) {
-        // TODO: Log encoding error
-        // TODO: Update UI with error state
-        // TODO: Clean up failed recording
+        print("❌ Recording encoding error: \(error?.localizedDescription ?? "Unknown error")")
+
+        // Clean up failed recording
+        if let filePath = currentRecordingPath {
+            let fileURL = getFileURL(for: filePath)
+            try? FileManager.default.removeItem(at: fileURL)
+        }
+
+        // Reset state
+        DispatchQueue.main.async {
+            self.stopLevelMonitoring()
+            self.isRecording = false
+            self.isPaused = false
+            self.currentRecordingPath = nil
+        }
     }
 }
 

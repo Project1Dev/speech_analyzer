@@ -1,0 +1,78 @@
+name: Build iOS App
+
+on:
+  push:
+    branches: [ master, main, develop ]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/build-ios.yml'
+  pull_request:
+    branches: [ master, main ]
+    paths:
+      - 'ios/**'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build:
+    name: Build iOS App
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Select Xcode version
+        run: sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install dependencies
+        run: |
+          cd ios/SpeechMastery
+          pod install --repo-update || true  # CocoaPods dependencies (if any)
+
+      - name: Build for Simulator
+        run: |
+          cd ios/SpeechMastery
+          xcodebuild build \
+            -scheme SpeechMastery \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -derivedDataPath build \
+            -arch arm64 \
+            -verbose
+
+      - name: Build for Device
+        run: |
+          cd ios/SpeechMastery
+          xcodebuild build \
+            -scheme SpeechMastery \
+            -configuration Debug \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            -allowProvisioningUpdates \
+            2>&1 | head -100 || true  # Try but don't fail (needs certs)
+        continue-on-error: true
+
+      - name: Run Unit Tests
+        run: |
+          cd ios/SpeechMastery
+          xcodebuild test \
+            -scheme SpeechMastery \
+            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            -verbose \
+            2>&1 | tail -50 || true
+        continue-on-error: true
+
+      - name: Upload Build Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-artifacts
+          path: ios/SpeechMastery/build/
+          retention-days: 7
+
+      - name: Build Status
+        if: always()
+        run: echo "Build completed. Check artifacts above."

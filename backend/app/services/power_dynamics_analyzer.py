@@ -91,45 +91,93 @@ class PowerDynamicsAnalyzer:
             - upspeak_indicators: Count detected
             - critical_moments: List of issues with timestamps
         """
-        # TODO: Normalize transcript
-        # TODO: Detect filler words
-        # TODO: Detect hedging language
-        # TODO: Analyze prosody for upspeak (if audio provided)
-        # TODO: Calculate score
-        # TODO: Identify critical moments
-        # TODO: Return analysis
+        # Normalize transcript to lowercase for matching
+        normalized = transcript.lower()
+
+        # Detect patterns
+        filler_result = self.detect_filler_words(normalized)
+        hedging_result = self.detect_hedging_language(normalized)
+
+        # Calculate per-minute rate
+        duration_minutes = max(duration / 60.0, 0.1)  # Avoid division by zero
+        filler_per_minute = filler_result["count"] / duration_minutes
+
+        # Upspeak detection requires audio analysis (not implemented in prototype)
+        upspeak_count = 0
+
+        # Calculate overall score
+        score = self.calculate_score(
+            filler_result["count"],
+            hedging_result["count"],
+            upspeak_count,
+            duration_minutes
+        )
+
+        # Identify critical moments (areas with excessive issues)
+        critical_moments = self._identify_critical_moments(
+            transcript,
+            filler_result["words"],
+            hedging_result["phrases"]
+        )
 
         return {
-            "score": 75.0,
-            "filler_words": {"count": 8, "words": {}, "per_minute": 3.8},
-            "hedging": {"count": 4, "phrases": {}},
-            "upspeak_indicators": 0,
-            "critical_moments": []
+            "score": score,
+            "filler_words": {
+                "count": filler_result["count"],
+                "words": filler_result["words"],
+                "per_minute": round(filler_per_minute, 1)
+            },
+            "hedging": {
+                "count": hedging_result["count"],
+                "phrases": hedging_result["phrases"]
+            },
+            "upspeak_indicators": upspeak_count,
+            "critical_moments": critical_moments
         }
 
     def detect_filler_words(self, transcript: str) -> Dict:
         """
         Detect filler words in transcript.
 
-        TODO: Implement when developing analyzer
+        Returns:
+            Dict with count and word breakdown
         """
-        # TODO: Split transcript into words/phrases
-        # TODO: Match against FILLER_WORDS dictionary
-        # TODO: Count occurrences
-        # TODO: Return structured data
-        pass
+        word_counts = {}
+        total_count = 0
+
+        # Check for multi-word phrases first (e.g., "you know")
+        for phrase, weight in sorted(self.FILLER_WORDS.items(), key=lambda x: len(x[0]), reverse=True):
+            count = transcript.count(phrase)
+            if count > 0:
+                word_counts[phrase] = count
+                total_count += count
+
+        return {
+            "count": total_count,
+            "words": word_counts
+        }
 
     def detect_hedging_language(self, transcript: str) -> Dict:
         """
         Detect hedging language.
 
-        TODO: Implement when developing analyzer
+        Returns:
+            Dict with count and phrase breakdown
         """
-        # TODO: Search for hedging phrases
-        # TODO: Count occurrences
-        # TODO: Find timestamps in transcript
-        # TODO: Return structured data
-        pass
+        phrase_counts = {}
+        total_count = 0
+
+        # Check for hedging phrases
+        for phrase, weight in sorted(self.HEDGING_PHRASES.items(), key=lambda x: len(x[0]), reverse=True):
+            count = transcript.count(phrase)
+            if count > 0:
+                phrase_counts[phrase] = count
+                total_count += count
+
+        return {
+            "count": total_count,
+            "phrases": phrase_counts
+        }
 
     def analyze_prosody(self, audio_data: bytes, transcript: str) -> int:
         """
@@ -147,17 +195,102 @@ class PowerDynamicsAnalyzer:
         self,
         filler_count: int,
         hedging_count: int,
-        upspeak_count: int
+        upspeak_count: int,
+        duration_minutes: float
     ) -> float:
         """
         Calculate power dynamics score.
 
-        TODO: Implement scoring algorithm
+        Scoring algorithm:
+        - Start at 100
+        - Deduct points for fillers per minute
+        - Deduct points for hedging phrases
+        - Deduct points for upspeak
+        - Clamp to 0-100 range
+
+        Args:
+            filler_count: Total filler words detected
+            hedging_count: Total hedging phrases detected
+            upspeak_count: Total upspeak instances
+            duration_minutes: Duration in minutes
+
+        Returns:
+            float: Score from 0-100
         """
-        # TODO: Apply penalties for each pattern
-        # TODO: Normalize to 0-100 scale
-        # TODO: Return final score
-        return 75.0
+        score = 100.0
+
+        # Penalty for filler words (scaled by duration)
+        fillers_per_minute = filler_count / duration_minutes
+        if fillers_per_minute > 10:
+            score -= 30  # Severe
+        elif fillers_per_minute > 5:
+            score -= 20  # High
+        elif fillers_per_minute > 2:
+            score -= 10  # Moderate
+        elif fillers_per_minute > 0:
+            score -= 5   # Low
+
+        # Penalty for hedging language
+        hedging_per_minute = hedging_count / duration_minutes
+        if hedging_per_minute > 5:
+            score -= 25  # Severe
+        elif hedging_per_minute > 3:
+            score -= 15  # High
+        elif hedging_per_minute > 1:
+            score -= 8   # Moderate
+        elif hedging_per_minute > 0:
+            score -= 3   # Low
+
+        # Penalty for upspeak (future implementation)
+        score -= upspeak_count * 2
+
+        # Clamp to valid range
+        return max(0.0, min(100.0, score))
+
+    def _identify_critical_moments(
+        self,
+        transcript: str,
+        filler_words: Dict[str, int],
+        hedging_phrases: Dict[str, int]
+    ) -> List[Dict]:
+        """
+        Identify critical moments where issues are concentrated.
+
+        For prototype: Returns top problematic patterns.
+        Future: Could include timestamps and context snippets.
+
+        Returns:
+            List of critical moment dicts with type, severity, context
+        """
+        critical_moments = []
+
+        # Find most common filler word
+        if filler_words:
+            most_common_filler = max(filler_words.items(), key=lambda x: x[1])
+            if most_common_filler[1] > 3:  # More than 3 occurrences
+                severity = min(10, most_common_filler[1])
+                critical_moments.append({
+                    "timestamp": 0.0,  # TODO: Calculate actual timestamp
+                    "type": "excessive_fillers",
+                    "severity": severity,
+                    "context": f"Repeated use of '{most_common_filler[0]}' ({most_common_filler[1]} times)",
+                    "suggestion": f"Reduce use of '{most_common_filler[0]}'. Pause instead."
+                })
+
+        # Find most common hedging phrase
+        if hedging_phrases:
+            most_common_hedge = max(hedging_phrases.items(), key=lambda x: x[1])
+            if most_common_hedge[1] > 2:  # More than 2 occurrences
+                severity = min(10, most_common_hedge[1] + 2)
+                critical_moments.append({
+                    "timestamp": 0.0,  # TODO: Calculate actual timestamp
+                    "type": "hedging",
+                    "severity": severity,
+                    "context": f"Frequent hedging with '{most_common_hedge[0]}' ({most_common_hedge[1]} times)",
+                    "suggestion": f"Speak with more certainty. Remove '{most_common_hedge[0]}'."
+                })
+
+        return critical_moments
 
 # MARK: - TODO: Implementation Tasks
 # TODO: Core analysis:

@@ -1,23 +1,21 @@
-"""
-Docker Compose Configuration
-
-Sets up complete development environment with:
-- FastAPI backend
-- PostgreSQL database
-- Redis (for caching and background tasks)
-- pgAdmin (database management UI)
-
-Usage:
-  docker-compose up -d          # Start all services
-  docker-compose down           # Stop all services
-  docker-compose logs -f        # View logs
-
-Services:
-  - backend: FastAPI app on http://localhost:8000
-  - postgres: PostgreSQL on localhost:5432
-  - redis: Redis on localhost:6379
-  - pgadmin: pgAdmin on http://localhost:5050
-"""
+# Docker Compose Configuration
+#
+# Sets up complete development environment with:
+# - FastAPI backend
+# - PostgreSQL database
+# - Redis (for caching and background tasks)
+# - pgAdmin (database management UI)
+#
+# Usage:
+#   docker-compose up -d          # Start all services
+#   docker-compose down           # Stop all services
+#   docker-compose logs -f        # View logs
+#
+# Services:
+#   - backend: FastAPI app on http://localhost:8000
+#   - postgres: PostgreSQL on localhost:5432
+#   - redis: Redis on localhost:6379
+#   - pgadmin: pgAdmin on http://localhost:5050
 
 version: "3.9"
 

@@ -37,35 +37,124 @@ import SwiftUI
 
 /// Settings and preferences view
 struct SettingsView: View {
-    // TODO: Implement with SettingsViewModel
-    // TODO: Add audio quality picker
-    // TODO: Add privacy controls section
-    // TODO: Add storage statistics
-    // TODO: Add cache management
-    // TODO: Add clear data options
-    // TODO: Add app information
-    // TODO: Add premium settings (optional feature)
+    // MARK: - State
+
+    @StateObject private var viewModel = SettingsViewModel()
 
     var body: some View {
         NavigationView {
             List {
+                // Audio Quality Section
                 Section("Audio Quality") {
-                    Text("Settings Placeholder")
+                    Picker("Quality", selection: $viewModel.audioQuality) {
+                        Text("Standard (128 kbps)").tag(AudioQuality.standard)
+                        Text("High (256 kbps)").tag(AudioQuality.high)
+                        Text("Very High (320 kbps)").tag(AudioQuality.veryHigh)
+                    }
                 }
 
-                Section("Privacy") {
-                    Text("Privacy Settings")
+                // Privacy Section
+                Section("Privacy & Safety") {
+                    Toggle("Upload to Server", isOn: $viewModel.uploadConsentGranted)
+
+                    Toggle("Wi-Fi Only Uploads", isOn: $viewModel.wiFiOnlyUploads)
+
+                    Button(action: {}) {
+                        HStack {
+                            Image(systemName: "lock.doc")
+                            Text("View Privacy Policy")
+                        }
+                        .foregroundColor(.accentColor)
+                    }
                 }
 
+                // Storage Section
                 Section("Storage") {
-                    Text("Storage Statistics")
+                    HStack {
+                        Text("Storage Used")
+                        Spacer()
+                        Text(viewModel.totalStorageUsed)
+                            .foregroundColor(.secondary)
+                    }
+
+                    HStack {
+                        Text("Recordings")
+                        Spacer()
+                        Text("\(viewModel.recordingsCount)")
+                            .foregroundColor(.secondary)
+                    }
+
+                    Button(action: { viewModel.requestClearCache() }) {
+                        HStack {
+                            Image(systemName: "trash")
+                            Text("Clear Cache")
+                        }
+                        .foregroundColor(.orange)
+                    }
                 }
 
+                // Auto-Delete Section
+                Section("Auto-Delete") {
+                    HStack {
+                        Text("Recordings auto-delete after")
+                        Spacer()
+                        Text("7 days")
+                            .foregroundColor(.secondary)
+                    }
+
+                    Text("All recordings are automatically deleted 7 days after creation for your privacy.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                // About Section
                 Section("About") {
-                    Text("App Information")
+                    HStack {
+                        Text("Version")
+                        Spacer()
+                        Text("1.0.0")
+                            .foregroundColor(.secondary)
+                    }
+
+                    HStack {
+                        Text("Build")
+                        Spacer()
+                        Text("Prototype")
+                            .foregroundColor(.secondary)
+                    }
+
+                    Button(action: {}) {
+                        HStack {
+                            Image(systemName: "globe")
+                            Text("Visit Website")
+                        }
+                        .foregroundColor(.accentColor)
+                    }
+                }
+
+                // Dangerous Zone
+                Section("Data Management") {
+                    Button(action: { viewModel.requestClearAllData() }) {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle")
+                            Text("Clear All Data")
+                        }
+                        .foregroundColor(.red)
+                    }
                 }
             }
             .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.large)
+            .alert("Clear All Data?", isPresented: $viewModel.showClearDataConfirmation) {
+                Button("Cancel", role: .cancel) {
+                    viewModel.cancelClearAllData()
+                }
+                Button("Clear", role: .destructive) {
+                    viewModel.confirmClearAllData()
+                }
+            } message: {
+                Text("This will permanently delete all recordings and data. This action cannot be undone.")
+            }
         }
     }
 }
@@ -76,5 +165,21 @@ struct SettingsView_Previews: PreviewProvider {
     }
 }
 
-// MARK: - TODO: Full Implementation
-// See SKELETON_SUMMARY.md for complete specifications
+// MARK: - COMPLETED Implementation
+/*
+ ✅ COMPLETED Core UI:
+ ✅ Audio quality picker with options
+ ✅ Privacy & safety controls
+ ✅ Storage statistics display
+ ✅ Auto-delete information
+ ✅ About section with version info
+ ✅ Cache management
+ ✅ Clear all data with confirmation
+
+ TODO: Enhancements:
+ 1. Add notification preferences
+ 2. Implement theme settings
+ 3. Add gesture customization
+ 4. Add language settings
+ 5. Implement app shortcuts
+ */

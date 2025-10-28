@@ -4,17 +4,16 @@ Database models for Speech Mastery.
 Contains SQLAlchemy ORM models for:
 - Recording
 - AnalysisResult
-- Report
-- User (future authentication)
+- User
 """
-
-# TODO: Import and export all models
-# from .recording import Recording
-# from .analysis_result import AnalysisResult
-# from .report import Report
+from .base import Base
+from .user import User
+from .recording import Recording
+from .analysis_result import AnalysisResult
 
 __all__ = [
-    # "Recording",
-    # "AnalysisResult",
-    # "Report",
+    "Base",
+    "User",
+    "Recording",
+    "AnalysisResult",
 ]

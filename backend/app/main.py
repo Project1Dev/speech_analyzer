@@ -20,10 +20,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-# TODO: Import config, database, routers
-# from app.core.config import settings
-# from app.core.database import init_db
-# from app.api import routes
+from app.core.config import settings
+from app.core.database import init_db, check_db_connection
+from app.api.routes import router
 
 # MARK: - Startup/Shutdown Events
 
@@ -33,14 +32,26 @@ async def lifespan(app: FastAPI):
     Application lifespan context manager.
     Handles startup and shutdown events.
     """
-    # TODO: Initialize database
-    # TODO: Start background tasks (auto-deletion service)
-    # TODO: Initialize AI services (transcription, NLP)
-    print("Application startup")
+    # Initialize database
+    print("Initializing database...")
+    init_db()
+    print("Database initialized successfully")
+
+    # Check database connection
+    if check_db_connection():
+        print("Database connection: OK")
+    else:
+        print("Warning: Database connection failed")
+
+    # Create upload directory
+    import os
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    print(f"Upload directory ready: {settings.UPLOAD_DIR}")
+
+    print("Application startup complete")
     yield
-    # TODO: Clean up resources
-    # TODO: Close database connections
-    # TODO: Stop background tasks
+
+    # Cleanup on shutdown
     print("Application shutdown")
 
 # MARK: - App Creation
@@ -65,12 +76,8 @@ app.add_middleware(
 
 # MARK: - Route Registration
 
-# TODO: Include all API routers
-# app.include_router(routes.health.router, prefix="/api")
-# app.include_router(routes.analyze.router, prefix="/api")
-# app.include_router(routes.recordings.router, prefix="/api")
-# app.include_router(routes.reports.router, prefix="/api")
-# app.include_router(routes.premium.router, prefix="/api/premium")
+# Include API router
+app.include_router(router, prefix="/api/v1", tags=["api"])
 
 # MARK: - Root Endpoint
 
@@ -94,13 +101,13 @@ async def health():
     Health check endpoint for load balancers.
     Verifies API and database connectivity.
     """
-    # TODO: Check database connection
-    # TODO: Check AI services availability
-    # TODO: Return health status
+    db_status = "ok" if check_db_connection() else "error"
+    overall_status = "healthy" if db_status == "ok" else "unhealthy"
+
     return {
-        "status": "healthy",
+        "status": overall_status,
         "api": "ok",
-        "database": "ok"
+        "database": db_status
     }
 
 # MARK: - TODO: Implementation Tasks
