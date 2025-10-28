@@ -42,16 +42,3 @@ targets:
       INFOPLIST_FILE: SpeechMastery/Info.plist
       SWIFT_VERSION: "5.5"
       IPHONEOS_DEPLOYMENT_TARGET: "15.0"
-
-  SpeechMasteryTests: # <-- NEW TARGET ADDED TO ENABLE 'xcodebuild test'
-    type: bundle.unit-test
-    platform: iOS
-    sources:
-      # Assuming your test files are in a folder named 'SpeechMasteryTests'
-      - path: SpeechMasteryTests 
-    dependencies:
-      - target: SpeechMastery # The test bundle depends on the main application
-    settings:
-      TEST_HOST: "$(BUILT_PRODUCTS_DIR)/SpeechMastery.app/SpeechMastery"
-      BUNDLE_LOADER: "$(TEST_HOST)"
-      IPHONEOS_DEPLOYMENT_TARGET: "15.0"

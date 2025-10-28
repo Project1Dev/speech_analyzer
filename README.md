@@ -22,78 +22,78 @@ This application helps users improve their speech patterns through:
 ```
 speech_analyzer/
 ├── ios/                 # iOS SwiftUI application
+│   ├── SpeechMastery/  # Main app code
+│   └── project.yml     # XcodeGen configuration
 ├── backend/            # FastAPI backend server
-├── docker/             # Docker configuration
-├── docs/               # Documentation
-└── scripts/            # Utility scripts
+│   ├── app/           # Application code
+│   ├── alembic/       # Database migrations
+│   └── show_api_url.sh # Helper to find backend IP
+├── docs/              # Documentation
+│   ├── DEVELOPMENT_GUIDE.md
+│   ├── MACOS_VM_SETUP.md (for dual-VM setup)
+│   └── [other docs]
+├── scripts/           # Utility scripts
+├── CLAUDE.md         # Instructions for Claude Code
+└── README.md         # This file
 ```
 
 ## Getting Started
 
 ### Prerequisites
+
+**Dual-VM Setup (Recommended):**
+- **Linux VM**: Docker + Python 3.9+ (backend development)
+- **macOS VM**: Xcode 15+ + XcodeGen (iOS development)
+- See [MACOS_VM_SETUP.md](docs/MACOS_VM_SETUP.md) for detailed instructions
+
+**Single Machine:**
 - macOS with Xcode 15+ (for iOS development)
 - Docker Desktop (for backend services)
-- Python 3.11+ (for backend development)
+- Python 3.9+ (for backend development)
 
 ### Quick Start
 
-1. **Initialize development environment**:
+1. **Start backend** (on Linux VM or local):
    ```bash
-   chmod +x scripts/*.sh
-   ./scripts/setup.sh
+   docker-compose up -d
    ```
 
-2. **Start Docker services** (backend, database, cache):
+2. **Generate iOS project** (on macOS VM or local):
    ```bash
-   ./scripts/start-docker.sh
+   cd ios
+   xcodegen generate
+   open SpeechMastery.xcodeproj
    ```
 
-   Services will be available at:
-   - Backend API: http://localhost:8000
-   - API Docs: http://localhost:8000/docs
-   - Database: localhost:5432
-   - pgAdmin: http://localhost:5050
+3. **Configure iOS app** to point to backend:
+   - Edit `ios/SpeechMastery/Utilities/Constants.swift`
+   - Set `baseURL` to your backend IP (or `localhost:8000`)
 
-3. **Develop iOS app** (open in Xcode):
-   ```bash
-   open ios/SpeechMastery/SpeechMastery.xcodeproj
-   ```
+Backend will be available at:
+- Backend API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
+- Database: localhost:5432
 
-   Then select a `.swift` file and enable Canvas preview (Editor → Canvas)
+## Current Status
 
-## Development Roadmap
-
-### Base Prototype (Current)
-- ✅ Audio recording with privacy indicators
-- ✅ Local storage with UserDefaults + Files
-- ✅ Four core speech analyzers
-- ✅ Daily reports with scoring and patterns
-- ✅ Single-user mode
-
-### Optional Premium Features (Future)
-- 🔜 CEO Voice Synthesis
-- 🔜 Live Guardian Mode with real-time alerts
-- 🔜 Simulation Arena for roleplay practice
-- 🔜 Gamification system (XP, streaks, leaderboards)
-- 🔜 Pre-Game Prep Mode
-- 🔜 Power Language Arsenal
-- 🔜 Conversational Chess
-- 🔜 Voice Command Training
-- 🔜 Success Guarantee System (90-day protocol)
+This is an **early prototype** with:
+- 🏗️ Backend infrastructure (FastAPI, Docker, PostgreSQL)
+- 🏗️ iOS app structure (SwiftUI, MVVM architecture)
+- 🏗️ Four speech analyzer skeletons
+- 🏗️ Database schema and migrations
+- ⚠️ **Not yet functional** - most features are TODO
 
 ## Documentation
 
-- [API Contract](docs/API_CONTRACT.md) - REST API specification
-- [Database Schema](docs/DATABASE_SCHEMA.md) - Data models and relationships
-- [Development Guide](docs/DEVELOPMENT_GUIDE.md) - Setup and workflow
-- [Architecture](docs/ARCHITECTURE.md) - System design and patterns
-- [Optional Features Roadmap](docs/OPTIONAL_FEATURES_ROADMAP.md) - Premium features plan
+**For Development:**
+- [DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md) - Complete setup and workflow
+- [MACOS_VM_SETUP.md](docs/MACOS_VM_SETUP.md) - macOS VM setup for dual-VM workflow
+- [CLAUDE.md](CLAUDE.md) - Project context for Claude Code
 
-## Testing
-
-- **iOS**: XCTest framework with mock data
-- **Backend**: Pytest with fixtures and integration tests
-- **Mock Data**: Sample audio files and API responses included
+**For Reference:**
+- [API_CONTRACT.md](docs/API_CONTRACT.md) - REST API specification
+- [DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) - Data models
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - System design
 
 ## Privacy & Security
 
