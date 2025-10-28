@@ -74,6 +74,100 @@ Services available at:
 - Database: localhost:5432
 - pgAdmin: http://localhost:5050
 
+## Dual-VM Development Setup
+
+This project uses a **dual-VM development workflow**:
+
+- **Linux VM**: Backend development (FastAPI, PostgreSQL, Docker)
+- **macOS VM**: iOS app development (Xcode, Simulator)
+
+Both VMs run on the same host machine and communicate via host networking.
+
+### Why Dual-VM?
+
+iOS builds via GitHub Actions were problematic (code signing, slow builds, cluttered commit history). Building iOS locally on macOS VM provides:
+- Faster iteration cycles
+- Native Xcode environment
+- Easier debugging with Simulator
+- No CI/CD complexity for iOS
+
+Backend continues to use GitHub Actions for testing (pytest on multiple Python versions).
+
+### Development Workflow
+
+**Typical cycle:**
+1. **Linux VM**: Make backend changes, test with pytest
+2. **Linux VM**: Commit and push to GitHub
+3. **macOS VM**: Pull latest changes
+4. **macOS VM**: Build iOS app, test integration with backend
+5. **macOS VM**: Commit iOS changes, push to GitHub
+6. **Linux VM**: Pull if needed
+
+### Network Configuration
+
+**Backend accessibility from iOS app:**
+
+1. **On Linux VM**: Docker services already bind to `0.0.0.0` (see docker-compose.yml)
+2. **Find Linux VM IP**:
+   ```bash
+   # On Linux VM
+   ip addr show | grep "inet " | grep -v 127.0.0.1
+   # Or use helper script
+   cd backend && ./show_api_url.sh
+   ```
+3. **Configure iOS app**: Update `ios/SpeechMastery/Utilities/Constants.swift` with Linux VM IP
+4. **Test connectivity**:
+   ```bash
+   # From macOS VM
+   curl http://<linux-vm-ip>:8000/health
+   ```
+
+**Port requirements:**
+- Port 8000: FastAPI backend
+- Port 5432: PostgreSQL (if iOS needs direct DB access)
+
+### macOS VM Setup
+
+See `docs/MACOS_VM_SETUP.md` for detailed instructions on:
+- Installing Xcode and XcodeGen
+- Cloning repository
+- Generating Xcode project with `xcodegen generate`
+- Configuring API endpoint
+- Running iOS Simulator
+
+### Git Workflow
+
+**Best practices:**
+- Commit frequently on each VM
+- Use clear commit messages indicating which component changed
+- Push after completing logical units of work
+- Pull on other VM before starting new work
+- Avoid editing same files simultaneously on both VMs
+
+**Branch strategy:**
+- `master`: Main development branch
+- Feature branches: Create when working on major features
+- Always test integration before merging
+
+### CI/CD Strategy
+
+- **Backend**: GitHub Actions runs pytest on push (see `.github/workflows/test-backend.yml`)
+- **iOS**: No CI/CD - built locally on macOS VM
+- **Integration tests**: Manual testing between iOS app and backend
+
+### Troubleshooting
+
+**iOS can't reach backend:**
+- Check firewall on Linux VM: `sudo ufw status`
+- Verify backend is running: `docker-compose ps`
+- Check Linux VM IP hasn't changed
+- Test with curl from macOS VM
+
+**Git conflicts:**
+- Usually happen when editing same files on both VMs
+- Pull before starting work to minimize conflicts
+- Use `git stash` if you need to pull with uncommitted changes
+
 ## Architecture Overview
 
 ### iOS App (MVVM Pattern)
