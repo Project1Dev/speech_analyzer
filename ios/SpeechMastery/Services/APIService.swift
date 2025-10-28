@@ -130,12 +130,7 @@ class APIService: ObservableObject {
 
         // Build additional form fields
         var additionalFields: [String: String] = [:]
-        if let title = recording.title {
-            additionalFields["title"] = title
-        }
-        if let notes = recording.notes {
-            additionalFields["notes"] = notes
-        }
+        // Note: Recording model doesn't have title/notes fields in prototype
 
         // Build multipart request
         let request = try buildMultipartRequest(

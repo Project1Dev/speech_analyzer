@@ -47,9 +47,10 @@ struct SettingsView: View {
                 // Audio Quality Section
                 Section("Audio Quality") {
                     Picker("Quality", selection: $viewModel.audioQuality) {
-                        Text("Standard (128 kbps)").tag(AudioQuality.standard)
-                        Text("High (256 kbps)").tag(AudioQuality.high)
-                        Text("Very High (320 kbps)").tag(AudioQuality.veryHigh)
+                        Text("Compressed (64 kbps)").tag(AudioSettings.compressed)
+                        Text("Standard (128 kbps)").tag(AudioSettings.standard)
+                        Text("High (256 kbps)").tag(AudioSettings.high)
+                        Text("Lossless WAV").tag(AudioSettings.wav)
                     }
                 }
 

@@ -25,6 +25,7 @@
 //
 
 import Foundation
+import AVFoundation
 
 /// Audio recording quality and format configuration
 struct AudioSettings: Codable, Hashable, Equatable {

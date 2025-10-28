@@ -117,14 +117,8 @@ class AudioRecordingService: NSObject, ObservableObject {
         let filePath = generateFilePath()
         let fileURL = getFileURL(for: filePath)
 
-        // Create audio recorder with settings
-        let recorderSettings: [String: Any] = [
-            AVFormatIDKey: audioSettings.formatID,
-            AVSampleRateKey: audioSettings.sampleRate,
-            AVNumberOfChannelsKey: audioSettings.numberOfChannels,
-            AVEncoderBitRateKey: audioSettings.bitRate,
-            AVEncoderAudioQualityKey: audioSettings.quality.rawValue
-        ]
+        // Create audio recorder with settings using AudioSettings helper
+        let recorderSettings = audioSettings.toAVSettings()
 
         do {
             audioRecorder = try AVAudioRecorder(url: fileURL, settings: recorderSettings)
@@ -214,8 +208,11 @@ class AudioRecordingService: NSObject, ObservableObject {
             filePath: filePath,
             fileSize: fileSize,
             duration: finalDuration,
-            createdAt: recordingStartTime ?? Date(),
-            updatedAt: Date()
+            recordedAt: recordingStartTime ?? Date(),
+            createdAt: Date(),
+            audioSettings: audioSettings,
+            analyzed: false,
+            uploaded: false
         )
 
         // Reset state
@@ -273,7 +270,7 @@ class AudioRecordingService: NSObject, ObservableObject {
         }
 
         self.audioSettings = settings
-        print("🎚️ Audio settings updated: \(settings.quality)")
+        print("🎚️ Audio settings updated: \(settings.qualityDescription)")
     }
 
     /// Configure AVAudioSession for recording
@@ -347,17 +344,7 @@ class AudioRecordingService: NSObject, ObservableObject {
         let timestamp = formatter.string(from: Date())
 
         // Get file extension from audio settings
-        let fileExtension: String
-        switch audioSettings.formatID {
-        case kAudioFormatMPEG4AAC:
-            fileExtension = "m4a"
-        case kAudioFormatAppleLossless:
-            fileExtension = "m4a"
-        case kAudioFormatLinearPCM:
-            fileExtension = "wav"
-        default:
-            fileExtension = "m4a"
-        }
+        let fileExtension = audioSettings.format
 
         // Return relative path
         return "recordings/\(timestamp).\(fileExtension)"

@@ -198,7 +198,7 @@ class AnalysisViewModel: ObservableObject {
     /// - Parameter moment: CriticalMoment to display
     func selectMoment(_ moment: CriticalMoment) {
         selectedMoment = moment
-        print("📍 Selected moment: \(moment.pattern) at \(moment.timestamp)s")
+        print("📍 Selected moment: \(moment.issue) at \(moment.formattedTimestamp)")
     }
 
     /// Clear selected moment
@@ -247,7 +247,7 @@ class AnalysisViewModel: ObservableObject {
             ("Power Dynamics", result.powerDynamicsScore),
             ("Linguistic Authority", result.linguisticAuthorityScore),
             ("Vocal Command", result.vocalCommandScore),
-            ("Persuasion", result.persuasionScore)
+            ("Persuasion & Influence", result.persuasionInfluenceScore)
         ]
     }
 
@@ -280,27 +280,27 @@ class AnalysisViewModel: ObservableObject {
 
     /// Get filler words breakdown
     var fillerWordsBreakdown: [String: Int] {
-        return analysisResult?.fillerWordsData?.words ?? [:]
+        return analysisResult?.patterns.fillerWords.words ?? [:]
     }
 
     /// Get hedging phrases breakdown
     var hedgingPhrasesBreakdown: [String: Int] {
-        return analysisResult?.hedgingData?.phrases ?? [:]
+        return analysisResult?.patterns.hedging.phrases ?? [:]
     }
 
     /// Get filler words per minute
     var fillerWordsPerMinute: Double {
-        return analysisResult?.fillerWordsData?.perMinute ?? 0
+        return analysisResult?.patterns.fillerWords.perMinute ?? 0
     }
 
     /// Get total filler words count
     var fillerWordsCount: Int {
-        return analysisResult?.fillerWordsData?.totalCount ?? 0
+        return analysisResult?.patterns.fillerWords.count ?? 0
     }
 
     /// Get total hedging phrases count
     var hedgingPhrasesCount: Int {
-        return analysisResult?.hedgingData?.totalCount ?? 0
+        return analysisResult?.patterns.hedging.count ?? 0
     }
 
     // MARK: - Upload Consent

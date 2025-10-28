@@ -1,0 +1,16 @@
+import XCTest
+
+class SpeechMasteryTests: XCTestCase {
+
+    override func setUp() {
+        super.setUp()
+    }
+
+    override func tearDown() {
+        super.tearDown()
+    }
+
+    func testExample() {
+        XCTAssertTrue(true)
+    }
+}

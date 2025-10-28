@@ -1,0 +1,57 @@
+name: SpeechMastery
+options:
+  bundleIdPrefix: com.speechmastery
+  deploymentTarget:
+    iOS: "15.0"
+
+targets:
+  SpeechMastery:
+    type: application
+    platform: iOS
+    sources:
+      # App entry point at root
+      - path: SpeechMastery
+        includes:
+          - "*.swift"
+      # Views directory
+      - path: SpeechMastery/Views
+        includes:
+          - "**/*.swift"
+      # Models directory
+      - path: SpeechMastery/Models
+        includes:
+          - "*.swift"
+      # Services directory
+      - path: SpeechMastery/Services
+        includes:
+          - "*.swift"
+      # ViewModels directory
+      - path: SpeechMastery/ViewModels
+        includes:
+          - "*.swift"
+      # Utilities directory
+        includes:
+          - "*.swift"
+    resources:
+      - path: SpeechMastery/Assets.xcassets
+      - path: SpeechMastery/Preview\ Content
+    settings:
+      PRODUCT_NAME: SpeechMastery
+      DEVELOPMENT_TEAM: ""
+      CODE_SIGN_STYLE: Manual
+      INFOPLIST_FILE: SpeechMastery/Info.plist
+      SWIFT_VERSION: "5.5"
+      IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+
+  SpeechMasteryTests: # <-- NEW TARGET ADDED TO ENABLE 'xcodebuild test'
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      # Assuming your test files are in a folder named 'SpeechMasteryTests'
+      - path: SpeechMasteryTests 
+    dependencies:
+      - target: SpeechMastery # The test bundle depends on the main application
+    settings:
+      TEST_HOST: "$(BUILT_PRODUCTS_DIR)/SpeechMastery.app/SpeechMastery"
+      BUNDLE_LOADER: "$(TEST_HOST)"
+      IPHONEOS_DEPLOYMENT_TARGET: "15.0"

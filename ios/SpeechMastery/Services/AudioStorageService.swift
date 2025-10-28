@@ -277,10 +277,7 @@ class AudioStorageService: ObservableObject {
     func getRecordingsPendingDeletion() -> [Recording] {
         let now = Date()
         return recordings.filter { recording in
-            if let autoDeleteAt = recording.autoDeleteAt {
-                return now >= autoDeleteAt
-            }
-            return false
+            return now >= recording.autoDeleteAt
         }
     }
 

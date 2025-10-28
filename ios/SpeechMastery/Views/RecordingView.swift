@@ -133,11 +133,13 @@ struct RecordingView: View {
                     Text(error)
                 }
             }
-            .navigationDestination(isPresented: $navigateToAnalysis) {
-                if let recording = viewModel.completedRecording {
-                    AnalysisResultView(recording: recording)
-                }
-            }
+            .background(
+                NavigationLink(
+                    destination: AnalysisResultView(recording: viewModel.completedRecording ?? Recording(filePath: "", fileSize: 0, duration: 0, audioSettings: .standard)),
+                    isActive: $navigateToAnalysis,
+                    label: { EmptyView() }
+                )
+            )
         }
     }
 

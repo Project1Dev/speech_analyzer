@@ -106,17 +106,12 @@ class ReportViewModel: ObservableObject {
     func fetchReport() async {
         isLoading = true
 
-        do {
-            // For prototype, create mock report with available data
-            // In production, would fetch from API
-            currentReport = createMockReportForDate(selectedDate)
-            reportAvailable = currentReport != nil
+        // For prototype, create mock report with available data
+        // In production, would fetch from API
+        currentReport = createMockReportForDate(selectedDate)
+        reportAvailable = currentReport != nil
 
-            print("✅ Report loaded for: \(formattedSelectedDate)")
-
-        } catch {
-            handleError(error)
-        }
+        print("✅ Report loaded for: \(formattedSelectedDate)")
 
         isLoading = false
     }
@@ -222,13 +217,13 @@ class ReportViewModel: ObservableObject {
 
     // MARK: - Pattern Details
 
-    /// Get top 3 patterns for summary
-    var topPatterns: [TopPattern] {
+    /// Get top 3 patterns for summary (as array)
+    var topPatternsArray: [TopPattern] {
         // TODO: Return currentReport?.topThreePatterns or empty array
         return currentReport?.topThreePatterns ?? []
     }
 
-    /// Get all patterns
+    /// Get all patterns (as array)
     var allPatterns: [TopPattern] {
         // TODO: Return currentReport?.topPatterns or empty array
         return currentReport?.topPatterns ?? []
@@ -349,18 +344,20 @@ class ReportViewModel: ObservableObject {
         let piScore = scoreVariance + Double.random(in: -10...10)
 
         return Report(
+            id: UUID(),
             reportDate: date,
+            generatedAt: Date(),
+            recordingsAnalyzed: isToday ? 1 : Int.random(in: 2...5),
+            totalDuration: Double(Int.random(in: 300...1200)),
             overallScore: scoreVariance,
             powerDynamicsScore: pdScore,
             linguisticAuthorityScore: laScore,
             vocalCommandScore: vcScore,
             persuasionInfluenceScore: piScore,
-            recordingsAnalyzed: isToday ? 1 : Int.random(in: 2...5),
-            totalDuration: Double(Int.random(in: 300...1200)),
             topPatterns: [
-                TopPattern(patternName: "Filler Words", count: Int.random(in: 3...8)),
-                TopPattern(patternName: "Hedging Language", count: Int.random(in: 2...6)),
-                TopPattern(patternName: "Passive Voice", count: Int.random(in: 1...4))
+                TopPattern(patternType: "filler_words", category: "power_dynamics", occurrences: Int.random(in: 3...8), impactScore: -5.5, recommendation: "Practice pausing instead"),
+                TopPattern(patternType: "hedging", category: "power_dynamics", occurrences: Int.random(in: 2...6), impactScore: -4.0, recommendation: "Use definitive statements"),
+                TopPattern(patternType: "passive_voice", category: "linguistic_authority", occurrences: Int.random(in: 1...4), impactScore: -3.2, recommendation: "Use active voice")
             ],
             criticalMoments: [],
             improvementSuggestions: [
@@ -412,10 +409,10 @@ class ReportViewModel: ObservableObject {
         ]
     }
 
-    /// Top patterns dictionary
+    /// Top patterns dictionary (pattern name -> count)
     var topPatterns: [String: Int] {
         guard let report = currentReport else { return [:] }
-        return Dictionary(uniqueKeysWithValues: report.topPatterns.map { ($0.patternName, $0.count) })
+        return Dictionary(uniqueKeysWithValues: report.topPatterns.map { ($0.displayName, $0.occurrences) })
     }
 
     /// Improvement suggestions array

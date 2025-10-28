@@ -127,15 +127,19 @@ class PrivacyManager: ObservableObject {
             return true
         }
 
-        // Request permission
-        let granted = await AVAudioSession.sharedInstance().requestRecordPermission()
+        // Request permission using continuation
+        return await withCheckedContinuation { continuation in
+            AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                // Update status
+                DispatchQueue.main.async {
+                    _ = self.checkMicrophonePermission()
+                }
 
-        // Update status
-        _ = checkMicrophonePermission()
+                print(granted ? "✅ Microphone permission granted" : "❌ Microphone permission denied")
 
-        print(granted ? "✅ Microphone permission granted" : "❌ Microphone permission denied")
-
-        return granted
+                continuation.resume(returning: granted)
+            }
+        }
     }
 
     /// Open Settings app to privacy page (if permission denied)

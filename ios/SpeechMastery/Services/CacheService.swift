@@ -349,10 +349,17 @@ class CacheService: ObservableObject {
 // MARK: - Supporting Types
 
 /// Cache entry with expiration
-private struct CacheEntry: Codable {
+private class CacheEntry: NSObject, Codable {
     let data: Data
     let expiresAt: Date
     let createdAt: Date
+
+    init(data: Data, expiresAt: Date, createdAt: Date) {
+        self.data = data
+        self.expiresAt = expiresAt
+        self.createdAt = createdAt
+        super.init()
+    }
 
     /// Check if entry has expired
     var isExpired: Bool {
@@ -362,6 +369,25 @@ private struct CacheEntry: Codable {
     /// Age of entry in seconds
     var age: TimeInterval {
         return Date().timeIntervalSince(createdAt)
+    }
+
+    required init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.data = try container.decode(Data.self, forKey: .data)
+        self.expiresAt = try container.decode(Date.self, forKey: .expiresAt)
+        self.createdAt = try container.decode(Date.self, forKey: .createdAt)
+        super.init()
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(data, forKey: .data)
+        try container.encode(expiresAt, forKey: .expiresAt)
+        try container.encode(createdAt, forKey: .createdAt)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case data, expiresAt, createdAt
     }
 }
 

@@ -210,21 +210,21 @@ struct DailyReportView: View {
                     .padding(12)
             } else {
                 VStack(spacing: 12) {
-                    ForEach(viewModel.topPatterns.prefix(5), id: \.key) { pattern, count in
+                    ForEach(Array(viewModel.topPatterns.prefix(5)), id: \.key) { item in
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(pattern)
+                                Text(item.key)
                                     .font(.subheadline)
                                     .fontWeight(.semibold)
 
-                                Text("Detected \(count) times")
+                                Text("Detected \(item.value) times")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
 
                             Spacer()
 
-                            Text("\(count)")
+                            Text("\(item.value)")
                                 .font(.headline)
                                 .foregroundColor(.accentColor)
                         }
