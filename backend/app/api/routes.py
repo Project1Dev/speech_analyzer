@@ -17,6 +17,7 @@ import librosa
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.config import settings
+from app.core.logging import get_logger
 from app.models.user import User
 from app.models.recording import Recording
 from app.models.analysis_result import AnalysisResult
@@ -24,6 +25,8 @@ from app.schemas.recording import RecordingResponse, RecordingListResponse
 from app.schemas.analysis import AnalysisResultResponse
 from app.schemas.common import MessageResponse
 from app.services.analysis_engine import AnalysisEngine
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -53,11 +56,14 @@ async def analyze_audio(
     Returns:
         AnalysisResultResponse with comprehensive analysis data
     """
+    logger.info(f"Audio upload request | User: {current_user.id} | File: {file.filename}")
+
     # Validate file type
     allowed_extensions = {'.m4a', '.wav', '.mp3', '.aac'}
     file_ext = os.path.splitext(file.filename)[1].lower()
 
     if file_ext not in allowed_extensions:
+        logger.warning(f"Invalid file type: {file_ext} from user {current_user.id}")
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported file type: {file_ext}. Allowed: {', '.join(allowed_extensions)}"
@@ -68,6 +74,8 @@ async def analyze_audio(
     upload_dir = settings.UPLOAD_DIR
     os.makedirs(upload_dir, exist_ok=True)
     file_path = os.path.join(upload_dir, f"{recording_id}{file_ext}")
+
+    logger.debug(f"Recording ID: {recording_id} | Path: {file_path}")
 
     try:
         # Save uploaded file
@@ -85,13 +93,16 @@ async def analyze_audio(
                 detail=f"File too large. Maximum size: {settings.MAX_UPLOAD_SIZE / 1024 / 1024}MB"
             )
 
+        logger.info(f"File saved | Size: {file_size / 1024:.1f}KB | ID: {recording_id}")
+
         # Extract audio metadata using librosa
         try:
             audio_data, sample_rate = librosa.load(file_path, sr=None)
             duration = librosa.get_duration(y=audio_data, sr=sample_rate)
+            logger.debug(f"Audio metadata extracted | Duration: {duration:.1f}s | Sample rate: {sample_rate}Hz")
         except Exception as e:
             # Fallback: estimate duration if librosa fails
-            print(f"Warning: Could not extract exact duration: {e}")
+            logger.warning(f"Could not extract exact audio duration: {e}. Using default estimate.")
             duration = 30.0  # Default estimate
             sample_rate = 44100
 
@@ -110,12 +121,15 @@ async def analyze_audio(
 
         db.add(recording)
         db.commit()
+        logger.debug(f"Recording saved to database | ID: {recording_id}")
 
         # Run analysis
+        logger.info(f"Starting analysis | Recording: {recording_id}")
         analysis_result_data = analysis_engine.analyze_audio(
             audio_file_path=file_path,
             duration=duration
         )
+        logger.info(f"Analysis complete | Recording: {recording_id} | Score: {analysis_result_data['overall_score']:.1f}")
 
         # Create analysis result record
         analysis_result = AnalysisResult(
@@ -149,7 +163,9 @@ async def analyze_audio(
         db.add(analysis_result)
         db.commit()
         db.refresh(analysis_result)
+        logger.debug(f"Analysis result saved to database | Recording: {recording_id}")
 
+        logger.info(f"Audio analysis request completed successfully | Recording: {recording_id}")
         return analysis_result
 
     except HTTPException:
@@ -157,8 +173,10 @@ async def analyze_audio(
         raise
     except Exception as e:
         # Clean up file on error
+        logger.error(f"Analysis failed for recording {recording_id}: {str(e)}")
         if os.path.exists(file_path):
             os.remove(file_path)
+            logger.debug(f"Cleaned up file after error: {file_path}")
         raise HTTPException(
             status_code=500,
             detail=f"Analysis failed: {str(e)}"
@@ -227,16 +245,21 @@ async def delete_recording(
             detail="Recording not found"
         )
 
+    logger.info(f"Deleting recording | ID: {recording_id} | User: {current_user.id}")
+
     # Delete file from disk
     if os.path.exists(recording.file_path):
         try:
             os.remove(recording.file_path)
+            logger.debug(f"Deleted file: {recording.file_path}")
         except Exception as e:
-            print(f"Warning: Could not delete file {recording.file_path}: {e}")
+            logger.warning(f"Could not delete file {recording.file_path}: {e}")
 
     # Delete from database (cascade will delete analysis_result)
     db.delete(recording)
     db.commit()
+
+    logger.info(f"Recording deleted successfully | ID: {recording_id}")
 
     return {
         "message": f"Recording {recording_id} deleted successfully",

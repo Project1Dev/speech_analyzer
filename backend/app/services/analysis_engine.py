@@ -92,7 +92,7 @@ class AnalysisEngine:
         )
 
         vocal_result = self.vocal_command_analyzer.analyze(
-            transcript, duration
+            transcript, duration, audio_data
         )
 
         persuasion_result = self.persuasion_analyzer.analyze(

@@ -28,6 +28,11 @@ OPTIONAL FEATURE: Custom patterns
 """
 
 from typing import List, Dict, Tuple
+import re
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 class PowerDynamicsAnalyzer:
     """
@@ -90,7 +95,33 @@ class PowerDynamicsAnalyzer:
             - hedging: Count and breakdown
             - upspeak_indicators: Count detected
             - critical_moments: List of issues with timestamps
+
+        Raises:
+            ValueError: If inputs are invalid
         """
+        # Input validation
+        if not transcript or not transcript.strip():
+            logger.debug("Empty transcript provided, returning perfect score")
+            # Return perfect score for empty transcript (no issues detected)
+            return {
+                "score": 100.0,
+                "filler_words": {"count": 0, "words": {}, "per_minute": 0.0},
+                "hedging": {"count": 0, "phrases": {}},
+                "upspeak_indicators": 0,
+                "critical_moments": []
+            }
+
+        if duration <= 0:
+            logger.error(f"Invalid duration: {duration}")
+            raise ValueError(f"Duration must be positive, got: {duration}")
+
+        # Warn if transcript is very long (potential performance issue)
+        word_count = len(transcript.split())
+        if word_count > 50000:
+            logger.warning(f"Very long transcript ({word_count} words). Analysis may be slow.")
+
+        logger.info(f"Starting PowerDynamics analysis | Words: {word_count} | Duration: {duration:.1f}s")
+
         # Normalize transcript to lowercase for matching
         normalized = transcript.lower()
 
@@ -117,7 +148,16 @@ class PowerDynamicsAnalyzer:
         critical_moments = self._identify_critical_moments(
             transcript,
             filler_result["words"],
-            hedging_result["phrases"]
+            hedging_result["phrases"],
+            duration
+        )
+
+        logger.info(
+            f"PowerDynamics analysis complete | "
+            f"Score: {score:.1f} | "
+            f"Fillers: {filler_result['count']} ({filler_per_minute:.1f}/min) | "
+            f"Hedging: {hedging_result['count']} | "
+            f"Critical moments: {len(critical_moments)}"
         )
 
         return {
@@ -247,48 +287,120 @@ class PowerDynamicsAnalyzer:
         # Clamp to valid range
         return max(0.0, min(100.0, score))
 
+    def _find_word_positions(self, transcript: str, pattern: str) -> List[int]:
+        """
+        Find all positions (in characters) where a pattern occurs in the transcript.
+
+        Args:
+            transcript: Full transcript (lowercase)
+            pattern: Word or phrase to find (lowercase)
+
+        Returns:
+            List of character positions where pattern was found
+        """
+        positions = []
+        # Use word boundaries to avoid partial matches
+        regex_pattern = r'\b' + re.escape(pattern) + r'\b'
+
+        for match in re.finditer(regex_pattern, transcript, re.IGNORECASE):
+            positions.append(match.start())
+
+        return positions
+
+    def _calculate_timestamp(
+        self,
+        char_position: int,
+        transcript: str,
+        duration: float
+    ) -> float:
+        """
+        Calculate approximate timestamp based on character position in transcript.
+
+        Assumes speech is relatively evenly paced throughout recording.
+
+        Args:
+            char_position: Character position in transcript
+            transcript: Full transcript
+            duration: Audio duration in seconds
+
+        Returns:
+            float: Estimated timestamp in seconds
+        """
+        if len(transcript) == 0:
+            return 0.0
+
+        # Calculate relative position (0.0 to 1.0)
+        relative_position = char_position / len(transcript)
+
+        # Scale to duration
+        timestamp = relative_position * duration
+
+        # Round to 1 decimal place
+        return round(timestamp, 1)
+
     def _identify_critical_moments(
         self,
         transcript: str,
         filler_words: Dict[str, int],
-        hedging_phrases: Dict[str, int]
+        hedging_phrases: Dict[str, int],
+        duration: float
     ) -> List[Dict]:
         """
         Identify critical moments where issues are concentrated.
 
-        For prototype: Returns top problematic patterns.
-        Future: Could include timestamps and context snippets.
+        Now includes accurate timestamps based on word positions.
+
+        Args:
+            transcript: Full transcript (lowercase)
+            filler_words: Dict of filler word counts
+            hedging_phrases: Dict of hedging phrase counts
+            duration: Audio duration in seconds
 
         Returns:
-            List of critical moment dicts with type, severity, context
+            List of critical moment dicts with type, severity, context, timestamp
         """
         critical_moments = []
 
-        # Find most common filler word
+        # Find most common filler word with actual positions
         if filler_words:
             most_common_filler = max(filler_words.items(), key=lambda x: x[1])
             if most_common_filler[1] > 3:  # More than 3 occurrences
+                # Find first occurrence for timestamp
+                positions = self._find_word_positions(transcript, most_common_filler[0])
+                timestamp = 0.0
+                if positions:
+                    timestamp = self._calculate_timestamp(positions[0], transcript, duration)
+
                 severity = min(10, most_common_filler[1])
                 critical_moments.append({
-                    "timestamp": 0.0,  # TODO: Calculate actual timestamp
+                    "timestamp": timestamp,
                     "type": "excessive_fillers",
                     "severity": severity,
                     "context": f"Repeated use of '{most_common_filler[0]}' ({most_common_filler[1]} times)",
                     "suggestion": f"Reduce use of '{most_common_filler[0]}'. Pause instead."
                 })
 
-        # Find most common hedging phrase
+        # Find most common hedging phrase with actual positions
         if hedging_phrases:
             most_common_hedge = max(hedging_phrases.items(), key=lambda x: x[1])
             if most_common_hedge[1] > 2:  # More than 2 occurrences
+                # Find first occurrence for timestamp
+                positions = self._find_word_positions(transcript, most_common_hedge[0])
+                timestamp = 0.0
+                if positions:
+                    timestamp = self._calculate_timestamp(positions[0], transcript, duration)
+
                 severity = min(10, most_common_hedge[1] + 2)
                 critical_moments.append({
-                    "timestamp": 0.0,  # TODO: Calculate actual timestamp
+                    "timestamp": timestamp,
                     "type": "hedging",
                     "severity": severity,
                     "context": f"Frequent hedging with '{most_common_hedge[0]}' ({most_common_hedge[1]} times)",
                     "suggestion": f"Speak with more certainty. Remove '{most_common_hedge[0]}'."
                 })
+
+        # Sort by timestamp
+        critical_moments.sort(key=lambda x: x["timestamp"])
 
         return critical_moments
 

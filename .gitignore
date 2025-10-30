@@ -34,3 +34,8 @@ htmlcov/
 
 # SQLite
 *.db
+
+# Models and logs
+backend/models/
+backend/logs/
+logs/

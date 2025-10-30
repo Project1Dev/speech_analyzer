@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     TRANSCRIPTION_SERVICE: str = os.getenv("TRANSCRIPTION_SERVICE", "mock")  # mock, whisper, etc.
     NLP_SERVICE: str = os.getenv("NLP_SERVICE", "basic")  # basic, spacy, openai, etc.
 
+    # Whisper Configuration
+    WHISPER_MODEL_SIZE: str = os.getenv("WHISPER_MODEL_SIZE", "base")  # tiny, base, small, medium, large
+    WHISPER_DEVICE: str = os.getenv("WHISPER_DEVICE", "cpu")  # cpu or cuda
+    WHISPER_COMPUTE_TYPE: str = os.getenv("WHISPER_COMPUTE_TYPE", "int8")  # int8, float16, float32
+    WHISPER_MODEL_DIR: str = os.getenv("WHISPER_MODEL_DIR", "./models")  # Directory to cache models
+
     # Redis Configuration (for caching and background tasks)
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
 

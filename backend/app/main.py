@@ -22,7 +22,15 @@ from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.core.database import init_db, check_db_connection
+from app.core.logging import setup_logging, get_logger
 from app.api.routes import router
+
+# Initialize logging
+log_level = "DEBUG" if settings.DEBUG else "INFO"
+json_logs = settings.ENVIRONMENT == "production"
+setup_logging(level=log_level, json_logs=json_logs)
+
+logger = get_logger(__name__)
 
 # MARK: - Startup/Shutdown Events
 
@@ -33,26 +41,26 @@ async def lifespan(app: FastAPI):
     Handles startup and shutdown events.
     """
     # Initialize database
-    print("Initializing database...")
+    logger.info("Initializing database...")
     init_db()
-    print("Database initialized successfully")
+    logger.info("Database initialized successfully")
 
     # Check database connection
     if check_db_connection():
-        print("Database connection: OK")
+        logger.info("Database connection: OK")
     else:
-        print("Warning: Database connection failed")
+        logger.warning("Database connection failed")
 
     # Create upload directory
     import os
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-    print(f"Upload directory ready: {settings.UPLOAD_DIR}")
+    logger.info(f"Upload directory ready: {settings.UPLOAD_DIR}")
 
-    print("Application startup complete")
+    logger.info("Application startup complete")
     yield
 
     # Cleanup on shutdown
-    print("Application shutdown")
+    logger.info("Application shutdown")
 
 # MARK: - App Creation
 

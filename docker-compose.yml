@@ -17,8 +17,6 @@
 #   - redis: Redis on localhost:6379
 #   - pgadmin: pgAdmin on http://localhost:5050
 
-version: "3.9"
-
 services:
   # MARK: - PostgreSQL Database
 
@@ -33,7 +31,6 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U speech_mastery"]
       interval: 10s
@@ -66,10 +63,14 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql://speech_mastery:dev_password_change_in_production@postgres:5432/speech_mastery_db
+      DATABASE_URL: postgresql+psycopg://speech_mastery:dev_password_change_in_production@postgres:5432/speech_mastery_db
       REDIS_URL: redis://redis:6379
       ENVIRONMENT: development
       DEBUG: "true"
+      TRANSCRIPTION_SERVICE: whisper  # Use mock for quick testing, whisper for real transcription
+      WHISPER_MODEL_SIZE: medium  # small = better accuracy, base = faster but lower quality
+      WHISPER_DEVICE: cpu
+      WHISPER_COMPUTE_TYPE: int8
     depends_on:
       postgres:
         condition: service_healthy

@@ -3,12 +3,17 @@ Transcription service for converting speech to text.
 
 Supports multiple backends:
 - Mock: Returns realistic fake transcript for testing
-- Whisper: OpenAI Whisper API (future)
+- Whisper: Local Whisper model using faster-whisper
 - AssemblyAI: AssemblyAI service (future)
 """
 from abc import ABC, abstractmethod
 from typing import Optional
 import random
+import os
+import time
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class BaseTranscriptionService(ABC):
@@ -83,17 +88,111 @@ class MockTranscriptionService(BaseTranscriptionService):
 
 class WhisperTranscriptionService(BaseTranscriptionService):
     """
-    Whisper API transcription service (placeholder for future implementation).
+    Local Whisper transcription service using faster-whisper.
+
+    faster-whisper is a reimplementation of OpenAI's Whisper model using CTranslate2,
+    which is 4x faster than the original implementation with lower memory usage.
     """
 
-    def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key
-        # TODO: Initialize Whisper client
+    def __init__(
+        self,
+        model_size: str = "base",
+        device: str = "cpu",
+        compute_type: str = "int8",
+        download_root: Optional[str] = None
+    ):
+        """
+        Initialize Whisper model.
+
+        Args:
+            model_size: Model size (tiny, base, small, medium, large)
+            device: Device to run on (cpu or cuda)
+            compute_type: Computation type (int8, float16, float32)
+            download_root: Directory to cache downloaded models
+        """
+        try:
+            from faster_whisper import WhisperModel
+
+            logger.info(f"Loading Whisper model: {model_size} on {device} with {compute_type}")
+
+            # Create model directory if it doesn't exist
+            if download_root and not os.path.exists(download_root):
+                os.makedirs(download_root, exist_ok=True)
+                logger.debug(f"Created model directory: {download_root}")
+
+            # Initialize model
+            self.model = WhisperModel(
+                model_size,
+                device=device,
+                compute_type=compute_type,
+                download_root=download_root
+            )
+            self.model_size = model_size
+            self.device = device
+
+            logger.info(f"Whisper model loaded successfully: {model_size}")
+
+        except ImportError:
+            logger.error("faster-whisper package not found")
+            raise ImportError(
+                "faster-whisper is not installed. "
+                "Install it with: pip install faster-whisper"
+            )
+        except Exception as e:
+            logger.error(f"Failed to initialize Whisper model: {str(e)}")
+            raise RuntimeError(f"Failed to initialize Whisper model: {str(e)}")
 
     def transcribe(self, audio_file_path: str) -> str:
-        """Transcribe using OpenAI Whisper API."""
-        # TODO: Implement Whisper API call
-        raise NotImplementedError("Whisper transcription not yet implemented")
+        """
+        Transcribe audio file using local Whisper model.
+
+        Args:
+            audio_file_path: Path to audio file
+
+        Returns:
+            str: Transcribed text
+
+        Raises:
+            FileNotFoundError: If audio file doesn't exist
+            RuntimeError: If transcription fails
+        """
+        # Validate file exists
+        if not os.path.exists(audio_file_path):
+            raise FileNotFoundError(f"Audio file not found: {audio_file_path}")
+
+        try:
+            start_time = time.time()
+            logger.info(f"Starting transcription: {audio_file_path}")
+
+            # Transcribe audio
+            # beam_size: Larger = more accurate but slower (5 is a good balance)
+            # word_timestamps: Enable for future word-level timing features
+            segments, info = self.model.transcribe(
+                audio_file_path,
+                beam_size=5,
+                word_timestamps=False  # Set to True for word-level timestamps in future
+            )
+
+            # Combine all segments into full transcript
+            transcript_parts = []
+            for segment in segments:
+                transcript_parts.append(segment.text)
+
+            transcript = " ".join(transcript_parts).strip()
+
+            elapsed_time = time.time() - start_time
+
+            logger.info(
+                f"Transcription completed in {elapsed_time:.2f}s | "
+                f"Language: {info.language} ({info.language_probability:.2f}) | "
+                f"Length: {len(transcript)} chars"
+            )
+
+            return transcript
+
+        except Exception as e:
+            logger.error(f"Transcription failed for {audio_file_path}: {str(e)}")
+            raise RuntimeError(f"Transcription failed: {str(e)}")
 
 
 def get_transcription_service(service_type: str = "mock") -> BaseTranscriptionService:
@@ -109,6 +208,14 @@ def get_transcription_service(service_type: str = "mock") -> BaseTranscriptionSe
     if service_type == "mock":
         return MockTranscriptionService()
     elif service_type == "whisper":
-        return WhisperTranscriptionService()
+        # Import settings here to avoid circular dependency
+        from app.core.config import settings
+
+        return WhisperTranscriptionService(
+            model_size=settings.WHISPER_MODEL_SIZE,
+            device=settings.WHISPER_DEVICE,
+            compute_type=settings.WHISPER_COMPUTE_TYPE,
+            download_root=settings.WHISPER_MODEL_DIR
+        )
     else:
         raise ValueError(f"Unknown transcription service type: {service_type}")
